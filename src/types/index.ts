@@ -274,4 +274,7 @@ export interface VetUserSession {
   availableTimeSlots: string[];
   bio: string;
   phone: string;
+  approvalStatus?: 'approved' | 'pending' | 'rejected';
+  approvedAt?: string;
+  createdAt?: string;
 }

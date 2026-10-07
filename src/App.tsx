@@ -51,6 +51,9 @@ const MainLayout: React.FC = () => {
     vetTab,
     setVetTab,
     activeVet,
+    availableVets,
+    loginAsVet,
+    loginCustomVet,
     currentCountry,
     locationSettings,
     isOnline,
@@ -70,16 +73,48 @@ const MainLayout: React.FC = () => {
   const [consultationPrefill, setConsultationPrefill] = useState<{ petId?: string; appointmentId?: string }>({});
   const [rescheduleAppointment, setRescheduleAppointment] = useState<Appointment | null>(null);
 
-  // Sync role based on authenticated user's profile
+  // Sync role and active doctor based on authenticated user's profile
   useEffect(() => {
-    if (profile) {
-      if (profile.role === 'veterinarian' && profile.vetStatus === 'approved') {
-        setCurrentRole('veterinarian');
-      } else {
+    if (!profile) return;
+
+    if (profile.role === 'veterinarian' && profile.vetStatus === 'approved') {
+      const matched = availableVets.find(
+        (v) =>
+          v.licenseNumber === profile.licenseNumber ||
+          v.email?.toLowerCase() === profile.email?.toLowerCase() ||
+          v.id === profile.id
+      );
+      if (matched) {
+        if (!activeVet || activeVet.id !== matched.id || currentRole !== 'veterinarian') {
+          loginAsVet(matched.id);
+        }
+      } else if (!activeVet || activeVet.id !== profile.id || currentRole !== 'veterinarian') {
+        loginCustomVet({
+          id: profile.id,
+          name: profile.fullName,
+          email: profile.email,
+          phone: profile.phone || '+639178349210',
+          title: 'Attending Clinical Veterinarian',
+          licenseNumber: profile.licenseNumber || 'PRC-VET-VERIFIED',
+          clinicId: profile.clinicId || 'clinic-1',
+          clinicName: profile.clinicName || 'Greenwood Animal Hospital & Wellness Center',
+          specialization: profile.specialization || 'Clinical Veterinary Medicine',
+          avatar: profile.avatarUrl || 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=300&q=80',
+          consultationFeeUSD: 14,
+          availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+          availableTimeSlots: ['08:30 AM', '09:15 AM', '10:00 AM', '11:00 AM', '01:30 PM', '02:30 PM'],
+          bio: profile.bio || 'Accredited veterinary clinician.',
+          approvalStatus: 'approved',
+          approvedAt: new Date().toISOString(),
+          createdAt: profile.createdAt || new Date().toISOString(),
+        });
+      }
+    } else if (profile.role === 'pet_owner') {
+      if (currentRole !== 'pet_owner') {
         setCurrentRole('pet_owner');
       }
     }
-  }, [profile, setCurrentRole]);
+  }, [profile?.id, profile?.role, profile?.vetStatus]);
 
   const handleOpenConsultationModal = (petId?: string, appointmentId?: string) => {
     setConsultationPrefill({ petId, appointmentId });
@@ -219,7 +254,7 @@ const MainLayout: React.FC = () => {
   };
 
   // 5. APPROVED VETERINARIAN PORTAL INTERFACE
-  if (profile.role === 'veterinarian' && profile.vetStatus === 'approved') {
+  if ((profile.role === 'veterinarian' && profile.vetStatus === 'approved') || currentRole === 'veterinarian') {
     return (
       <div className="min-h-screen bg-stone-100/80 text-stone-900 flex flex-col font-sans selection:bg-teal-200 selection:text-teal-950">
         {/* Dedicated Veterinarian Clinical Header */}

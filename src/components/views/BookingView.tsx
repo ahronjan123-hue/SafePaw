@@ -45,15 +45,20 @@ export const BookingView: React.FC = () => {
   const [step, setStep] = useState<number>(1);
 
   // Form State
+  const initialClinic = clinics.find((c) => c.id === (preselectedClinicId || clinics[0]?.id)) || clinics[0];
   const [selectedClinicId, setSelectedClinicId] = useState<string>(
     preselectedClinicId || clinics[0]?.id || ''
   );
   const [selectedPet, setSelectedPet] = useState<string>(selectedPetId || pets[0]?.id || '');
-  const [selectedServiceId, setSelectedServiceId] = useState<string>('');
+  const [selectedServiceId, setSelectedServiceId] = useState<string>(
+    initialClinic?.services[0]?.id || ''
+  );
   const [isTelehealth, setIsTelehealth] = useState<boolean>(false);
   const [selectedDate, setSelectedDate] = useState<string>('2026-10-12');
   const [selectedTime, setSelectedTime] = useState<string>('10:00 AM');
-  const [selectedVetId, setSelectedVetId] = useState<string>('');
+  const [selectedVetId, setSelectedVetId] = useState<string>(
+    initialClinic?.veterinarians[0]?.id || ''
+  );
   const [symptoms, setSymptoms] = useState<string>('Routine health exam and booster review');
   const [notes, setNotes] = useState<string>('');
   const [paymentChoice, setPaymentChoice] = useState<'pay_at_clinic' | 'deposit_paid'>('deposit_paid');
@@ -66,22 +71,27 @@ export const BookingView: React.FC = () => {
   useEffect(() => {
     if (preselectedClinicId) {
       setSelectedClinicId(preselectedClinicId);
+      const targetClinic = clinics.find((c) => c.id === preselectedClinicId);
+      if (targetClinic) {
+        setSelectedServiceId(targetClinic.services[0]?.id || '');
+        setSelectedVetId(targetClinic.veterinarians[0]?.id || '');
+      }
     }
-  }, [preselectedClinicId]);
+  }, [preselectedClinicId, clinics]);
 
   const currentClinic = clinics.find((c) => c.id === selectedClinicId) || clinics[0];
   const currentPet = pets.find((p) => p.id === selectedPet) || pets[0];
   const currentService = currentClinic?.services.find((s) => s.id === selectedServiceId) || currentClinic?.services[0];
   const currentVet = currentClinic?.veterinarians.find((v) => v.id === selectedVetId) || currentClinic?.veterinarians[0];
 
-  useEffect(() => {
-    if (currentClinic && !selectedServiceId) {
-      setSelectedServiceId(currentClinic.services[0]?.id || '');
+  const handleClinicChange = (clinicId: string) => {
+    setSelectedClinicId(clinicId);
+    const targetClinic = clinics.find((c) => c.id === clinicId);
+    if (targetClinic) {
+      setSelectedServiceId(targetClinic.services[0]?.id || '');
+      setSelectedVetId(targetClinic.veterinarians[0]?.id || '');
     }
-    if (currentClinic && !selectedVetId) {
-      setSelectedVetId(currentClinic.veterinarians[0]?.id || '');
-    }
-  }, [currentClinic]);
+  };
 
   const handleConfirmBooking = () => {
     if (!currentClinic || !currentPet || !currentService) return;

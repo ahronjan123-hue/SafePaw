@@ -32,6 +32,7 @@ import {
   getCountryByCode,
   formatCurrencyAmount,
 } from '../data/countries';
+import { getSupabase } from '../lib/supabase';
 
 interface AppContextType {
   // Role & Session
@@ -424,6 +425,143 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [isOnline, syncQueue.length, locationSettings.autoSyncEnabled]);
 
+  // Load data from Supabase when available and online
+  useEffect(() => {
+    const supabase = getSupabase();
+    if (!supabase || !isOnline) return;
+
+    let isMounted = true;
+
+    const loadSupabaseData = async () => {
+      try {
+        // 1. Fetch pets from Supabase
+        const { data: dbPets, error: petsErr } = await supabase.from('pets').select('*');
+        if (!petsErr && dbPets && dbPets.length > 0 && isMounted) {
+          const mappedPets: Pet[] = dbPets.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            species: p.species,
+            breed: p.breed,
+            ageYears: Number(p.age_years) || 1,
+            birthDate: p.birth_date || '',
+            weightKg: Number(p.weight_kg) || 5,
+            gender: p.gender || 'Male',
+            neutered: Boolean(p.neutered),
+            microchipId: p.microchip_id || '',
+            photoUrl: p.photo_url || '',
+            allergies: Array.isArray(p.allergies) ? p.allergies : [],
+            chronicConditions: Array.isArray(p.chronic_conditions) ? p.chronic_conditions : [],
+            temperament: p.temperament || '',
+            dietaryNotes: p.dietary_notes || '',
+            primaryClinicId: p.primary_clinic_id,
+            ownerName: p.owner_name,
+            ownerPhone: p.owner_phone,
+            ownerEmail: p.owner_email,
+            registeredDate: p.registered_date || new Date().toISOString().split('T')[0],
+          }));
+          setPets(mappedPets);
+        }
+
+        // 2. Fetch appointments from Supabase
+        const { data: dbAppointments, error: apptErr } = await supabase.from('appointments').select('*');
+        if (!apptErr && dbAppointments && dbAppointments.length > 0 && isMounted) {
+          const mappedAppts: Appointment[] = dbAppointments.map((a: any) => ({
+            id: a.id,
+            petId: a.pet_id,
+            petName: a.pet_name,
+            clinicId: a.clinic_id,
+            clinicName: a.clinic_name,
+            clinicAddress: a.clinic_address,
+            vetId: a.vet_id,
+            vetName: a.vet_name,
+            serviceId: a.service_id,
+            serviceName: a.service_name,
+            date: a.date,
+            time: a.time,
+            isTelehealth: Boolean(a.is_telehealth),
+            status: a.status as AppointmentStatus,
+            queuePosition: a.queue_position,
+            estimatedWaitMins: a.estimated_wait_mins,
+            symptoms: a.symptoms || '',
+            notes: a.notes || '',
+            baseCostUSD: Number(a.base_cost_usd) || 0,
+            paymentStatus: a.payment_status || 'pay_at_clinic',
+            createdAt: a.created_at || new Date().toISOString(),
+            ownerName: a.owner_name,
+            ownerPhone: a.owner_phone,
+            rejectionReason: a.rejection_reason,
+            completedAt: a.completed_at,
+            clinicalSummary: a.clinical_summary,
+            syncStatus: 'synced',
+          }));
+          setAppointments(mappedAppts);
+        }
+
+        // 3. Fetch health records from Supabase
+        const { data: dbRecords, error: recErr } = await supabase.from('health_records').select('*');
+        if (!recErr && dbRecords && dbRecords.length > 0 && isMounted) {
+          const mappedRecords: HealthRecord[] = dbRecords.map((r: any) => ({
+            id: r.id,
+            petId: r.pet_id,
+            type: r.type,
+            title: r.title,
+            date: r.date,
+            nextDueDate: r.next_due_date,
+            veterinarian: r.veterinarian,
+            vetLicenseNumber: r.vet_license_number,
+            clinicName: r.clinic_name,
+            notes: r.notes,
+            status: r.status,
+            batchNumber: r.batch_number,
+            attachmentName: r.attachment_name,
+            createdByVetId: r.created_by_vet_id,
+            vitals: r.vitals,
+            prescriptions: r.prescriptions,
+            vaccineAdministered: r.vaccine_administered,
+            isPrivateVetNote: r.is_private_vet_note,
+            privateVetNotes: r.private_vet_notes,
+            ownerDischargeInstructions: r.owner_discharge_instructions,
+            syncStatus: 'synced',
+          }));
+          setHealthRecords(mappedRecords);
+        }
+
+        // 4. Fetch lost pets from Supabase
+        const { data: dbLostPets, error: lostErr } = await supabase.from('lost_pets').select('*');
+        if (!lostErr && dbLostPets && dbLostPets.length > 0 && isMounted) {
+          const mappedLost: LostPetReport[] = dbLostPets.map((l: any) => ({
+            id: l.id,
+            petName: l.pet_name,
+            species: l.species,
+            breed: l.breed,
+            photoUrl: l.photo_url || '',
+            lastSeenLocation: l.last_seen_location || '',
+            city: l.city || 'Metro Manila',
+            countryCode: l.country_code || 'PH',
+            lastSeenDate: l.last_seen_date,
+            contactPhone: l.contact_phone,
+            contactEmail: l.contact_email,
+            microchipNumber: l.microchip_number,
+            baseRewardUSD: Number(l.base_reward_usd) || 0,
+            status: l.status,
+            description: l.description,
+            reportedBy: l.reported_by,
+            dateReported: l.date_reported,
+          }));
+          setLostPets(mappedLost);
+        }
+      } catch (err) {
+        console.warn('[SafePaw] Error loading data from Supabase:', err);
+      }
+    };
+
+    loadSupabaseData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOnline]);
+
   const toggleSimulatedOffline = () => {
     setIsSimulatedOffline((prev) => !prev);
   };
@@ -463,25 +601,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       (v) => v.id === vetIdOrEmail || v.email.toLowerCase() === vetIdOrEmail.toLowerCase()
     );
     if (found) {
+      if (activeVet?.id === found.id && currentRole === 'veterinarian') {
+        return true;
+      }
       setActiveVet(found);
       setCurrentRole('veterinarian');
       setVetTab('dashboard');
-      const notif: NotificationItem = {
-        id: `notif-auth-${Date.now()}`,
-        type: 'vet_alert',
-        title: `Welcome, ${found.name}`,
-        description: `Authenticated with clinical license ${found.licenseNumber} at ${found.clinicName}.`,
-        timestamp: 'Just now',
-        read: false,
-        badge: 'Clinic',
-      };
-      setNotifications((prev) => [notif, ...prev]);
       return true;
     }
     return false;
   };
 
   const loginCustomVet = (customProfile: VetUserSession) => {
+    if (activeVet?.id === customProfile.id && currentRole === 'veterinarian') {
+      return;
+    }
     setActiveVet(customProfile);
     setCurrentRole('veterinarian');
     setVetTab('dashboard');
@@ -554,6 +688,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPets((prev) => deduplicateById([newPet, ...prev]));
     setSelectedPetId(newPet.id);
 
+    const supabase = getSupabase();
+    if (supabase && isOnline) {
+      Promise.resolve(
+        supabase
+          .from('pets')
+          .upsert({
+            id: newPet.id,
+            name: newPet.name,
+            species: newPet.species,
+            breed: newPet.breed,
+            age_years: newPet.ageYears,
+            birth_date: newPet.birthDate,
+            weight_kg: newPet.weightKg,
+            gender: newPet.gender,
+            neutered: newPet.neutered,
+            microchip_id: newPet.microchipId,
+            photo_url: newPet.photoUrl,
+            allergies: newPet.allergies,
+            chronic_conditions: newPet.chronicConditions,
+            temperament: newPet.temperament,
+            dietary_notes: newPet.dietaryNotes,
+            primary_clinic_id: newPet.primaryClinicId,
+            owner_name: newPet.ownerName,
+            owner_phone: newPet.ownerPhone,
+            registered_date: newPet.registeredDate,
+          })
+      )
+        .then(() => {})
+        .catch((err: unknown) => console.warn('Supabase pet write note:', err));
+    }
+
     if (!isOnline) {
       setSyncQueue((prev) => [
         ...prev,
@@ -569,6 +734,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updatePet = (id: string, updates: Partial<Pet>) => {
     setPets((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)));
+
+    const supabase = getSupabase();
+    if (supabase && isOnline) {
+      const dbUpdates: Record<string, any> = {};
+      if (updates.name !== undefined) dbUpdates.name = updates.name;
+      if (updates.weightKg !== undefined) dbUpdates.weight_kg = updates.weightKg;
+      if (updates.ageYears !== undefined) dbUpdates.age_years = updates.ageYears;
+      if (updates.dietaryNotes !== undefined) dbUpdates.dietary_notes = updates.dietaryNotes;
+      if (updates.temperament !== undefined) dbUpdates.temperament = updates.temperament;
+      if (updates.photoUrl !== undefined) dbUpdates.photo_url = updates.photoUrl;
+      if (updates.allergies !== undefined) dbUpdates.allergies = updates.allergies;
+      if (updates.chronicConditions !== undefined) dbUpdates.chronic_conditions = updates.chronicConditions;
+      dbUpdates.updated_at = new Date().toISOString();
+
+      Promise.resolve(
+        supabase
+          .from('pets')
+          .update(dbUpdates)
+          .eq('id', id)
+      )
+        .then(() => {})
+        .catch((err: unknown) => console.warn('Supabase pet update note:', err));
+    }
+
     if (!isOnline) {
       setSyncQueue((prev) => [
         ...prev,
@@ -590,6 +779,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return remaining;
     });
+
+    const supabase = getSupabase();
+    if (supabase && isOnline) {
+      Promise.resolve(supabase.from('pets').delete().eq('id', id))
+        .then(() => {})
+        .catch((err: unknown) => console.warn('Supabase pet delete note:', err));
+    }
   };
 
   // Appointment Double Booking / Conflict Check
@@ -642,6 +838,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setAppointments((prev) => deduplicateById([newApt, ...prev]));
 
+    const supabase = getSupabase();
+    if (supabase && isOnline) {
+      Promise.resolve(
+        supabase
+          .from('appointments')
+          .upsert({
+            id: newApt.id,
+            pet_id: newApt.petId,
+            pet_name: newApt.petName,
+            clinic_id: newApt.clinicId,
+            clinic_name: newApt.clinicName,
+            clinic_address: newApt.clinicAddress,
+            vet_id: newApt.vetId,
+            vet_name: newApt.vetName,
+            service_id: newApt.serviceId,
+            service_name: newApt.serviceName,
+            date: newApt.date,
+            time: newApt.time,
+            is_telehealth: newApt.isTelehealth,
+            status: newApt.status,
+            queue_position: newApt.queuePosition,
+            estimated_wait_mins: newApt.estimatedWaitMins,
+            symptoms: newApt.symptoms,
+            notes: newApt.notes,
+            base_cost_usd: newApt.baseCostUSD,
+            payment_status: newApt.paymentStatus,
+            owner_name: newApt.ownerName,
+            owner_phone: newApt.ownerPhone,
+            created_at: newApt.createdAt,
+          })
+      )
+        .then(() => {})
+        .catch((err: unknown) => console.warn('Supabase appt write note:', err));
+    }
+
     if (!isOnline) {
       setSyncQueue((prev) => [
         ...prev,
@@ -685,6 +916,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return apt;
       })
     );
+
+    const supabase = getSupabase();
+    if (supabase && isOnline) {
+      Promise.resolve(
+        supabase
+          .from('appointments')
+          .update({ status })
+          .eq('id', id)
+      )
+        .then(() => {})
+        .catch((err: unknown) => console.warn('Supabase status update error:', err));
+    }
   };
 
   const acceptAppointment = (id: string) => {
@@ -694,6 +937,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAppointments((prev) =>
       prev.map((a) => (a.id === id ? { ...a, status: 'scheduled' } : a))
     );
+
+    const supabase = getSupabase();
+    if (supabase && isOnline) {
+      Promise.resolve(
+        supabase.from('appointments').update({ status: 'scheduled' }).eq('id', id)
+      )
+        .then(() => {})
+        .catch((err: unknown) => console.warn('Supabase accept error:', err));
+    }
 
     const notif: NotificationItem = {
       id: generateId('notif'),
@@ -717,6 +969,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         a.id === id ? { ...a, status: 'cancelled', rejectionReason: reason } : a
       )
     );
+
+    const supabase = getSupabase();
+    if (supabase && isOnline) {
+      Promise.resolve(
+        supabase.from('appointments').update({ status: 'cancelled', rejection_reason: reason }).eq('id', id)
+      )
+        .then(() => {})
+        .catch((err: unknown) => console.warn('Supabase decline error:', err));
+    }
 
     const notif: NotificationItem = {
       id: generateId('notif'),
@@ -756,6 +1017,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       )
     );
 
+    const supabase = getSupabase();
+    if (supabase && isOnline) {
+      Promise.resolve(
+        supabase.from('appointments').update({ date: newDate, time: newTime, status: 'scheduled' }).eq('id', id)
+      )
+        .then(() => {})
+        .catch((err: unknown) => console.warn('Supabase reschedule error:', err));
+    }
+
     const notif: NotificationItem = {
       id: generateId('notif'),
       type: 'appointment',
@@ -787,6 +1057,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       )
     );
 
+    const supabase = getSupabase();
+    if (supabase && isOnline) {
+      Promise.resolve(
+        supabase.from('appointments').update({ status: 'completed', clinical_summary: summary || apt.clinicalSummary, completed_at: new Date().toISOString() }).eq('id', id)
+      )
+        .then(() => {})
+        .catch((err: unknown) => console.warn('Supabase complete error:', err));
+    }
+
     const notif: NotificationItem = {
       id: generateId('notif'),
       type: 'appointment',
@@ -804,6 +1083,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAppointments((prev) =>
       prev.map((apt) => (apt.id === id ? { ...apt, status: 'cancelled' } : apt))
     );
+
+    const supabase = getSupabase();
+    if (supabase && isOnline) {
+      Promise.resolve(
+        supabase.from('appointments').update({ status: 'cancelled' }).eq('id', id)
+      )
+        .then(() => {})
+        .catch((err: unknown) => console.warn('Supabase cancel error:', err));
+    }
   };
 
   // Health Records & EMR Charting
@@ -814,6 +1102,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       syncStatus: isOnline ? 'synced' : 'pending_sync',
     };
     setHealthRecords((prev) => deduplicateById([newRecord, ...prev]));
+
+    const supabase = getSupabase();
+    if (supabase && isOnline) {
+      Promise.resolve(
+        supabase
+          .from('health_records')
+          .upsert({
+            id: newRecord.id,
+            pet_id: newRecord.petId,
+            type: newRecord.type,
+            title: newRecord.title,
+            date: newRecord.date,
+            next_due_date: newRecord.nextDueDate,
+            veterinarian: newRecord.veterinarian,
+            vet_license_number: newRecord.vetLicenseNumber,
+            clinic_name: newRecord.clinicName,
+            notes: newRecord.notes,
+            status: newRecord.status,
+            batch_number: newRecord.batchNumber,
+            attachment_name: newRecord.attachmentName,
+            created_by_vet_id: newRecord.createdByVetId,
+            vitals: newRecord.vitals,
+            prescriptions: newRecord.prescriptions,
+            is_private_vet_note: newRecord.isPrivateVetNote,
+            private_vet_notes: newRecord.privateVetNotes,
+            owner_discharge_instructions: newRecord.ownerDischargeInstructions,
+          })
+      )
+        .then(() => {})
+        .catch((err: unknown) => console.warn('Supabase health rec write note:', err));
+    }
 
     if (!isOnline) {
       setSyncQueue((prev) => [
@@ -907,6 +1226,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setHealthRecords((prev) => deduplicateById([...newRecordsToAdd, ...prev]));
 
+    const supabase = getSupabase();
+    if (supabase && isOnline) {
+      newRecordsToAdd.forEach((r) => {
+        Promise.resolve(
+          supabase
+            .from('health_records')
+            .upsert({
+              id: r.id,
+              pet_id: r.petId,
+              type: r.type,
+              title: r.title,
+              date: r.date,
+              next_due_date: r.nextDueDate,
+              veterinarian: r.veterinarian,
+              vet_license_number: r.vetLicenseNumber,
+              clinic_name: r.clinicName,
+              notes: r.notes,
+              status: r.status,
+              batch_number: r.batchNumber,
+              created_by_vet_id: r.createdByVetId,
+              vitals: r.vitals,
+              prescriptions: r.prescriptions,
+              is_private_vet_note: r.isPrivateVetNote,
+              private_vet_notes: r.privateVetNotes,
+              owner_discharge_instructions: r.ownerDischargeInstructions,
+            })
+        )
+          .then(() => {})
+          .catch((err: unknown) => console.warn('Supabase health note write error:', err));
+      });
+    }
+
     // Update pet's weight in their profile if vitals provided
     if (data.vitals?.weightKg) {
       updatePet(data.petId, { weightKg: data.vitals.weightKg });
@@ -961,6 +1312,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return c;
       })
     );
+
+    const supabase = getSupabase();
+    if (supabase && isOnline) {
+      Promise.resolve(
+        supabase.from('chat_messages').insert({
+          id: newMsg.id,
+          conversation_id: conversationId,
+          sender: newMsg.sender,
+          sender_name: senderType === 'clinic' ? (activeVet?.name || 'Clinic') : 'Pet Parent',
+          text: newMsg.text,
+          timestamp: newMsg.timestamp,
+          is_read: true,
+          attachment: newMsg.attachment,
+        })
+      )
+        .then(() => {})
+        .catch((err: unknown) => console.warn('Supabase chat write error:', err));
+    }
 
     if (!isOnline) {
       setSyncQueue((prev) => [

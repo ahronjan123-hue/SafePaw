@@ -3,23 +3,28 @@ import { useAuth } from '../../context/AuthContext';
 import {
   Stethoscope,
   Heart,
-  Sparkles,
   CheckCircle,
   AlertCircle,
   Loader2,
   FileText,
+  Shield,
+  Calendar,
+  Activity,
 } from 'lucide-react';
-import { INITIAL_CLINICS, INITIAL_VETS } from '../../data/initialData';
+import { INITIAL_CLINICS } from '../../data/initialData';
 
 export const AuthPage: React.FC = () => {
   const {
     signInWithGoogle,
     signInWithEmail,
     signUpWithEmail,
+    loginAsDemoUser,
     authError,
     setAuthError,
+    isConfigured,
   } = useAuth();
 
+  // Default to Pet Owner (User) as the starting point
   const [portalMode, setPortalMode] = useState<'pet_owner' | 'veterinarian'>('pet_owner');
   const [authMethod, setAuthMethod] = useState<'google' | 'email'>('google');
   const [isSigningUp, setIsSigningUp] = useState(false);
@@ -31,7 +36,7 @@ export const AuthPage: React.FC = () => {
   const [fullName, setFullName] = useState('');
 
   // Vet registration specific fields
-  const [vetLicense, setVetLicense] = useState('PRC-VET-0038912');
+  const [vetLicense, setVetLicense] = useState('');
   const [selectedClinicId, setSelectedClinicId] = useState(INITIAL_CLINICS[0].id);
   const [vetSpecialization, setVetSpecialization] = useState('Small Animal Medicine');
 
@@ -43,6 +48,17 @@ export const AuthPage: React.FC = () => {
     const clinic = INITIAL_CLINICS.find((c) => c.id === selectedClinicId) || INITIAL_CLINICS[0];
 
     try {
+      if (!isConfigured) {
+        // Smooth fallback if Supabase client keys are not set
+        if (portalMode === 'veterinarian') {
+          loginAsDemoUser('veterinarian');
+        } else {
+          loginAsDemoUser('pet_owner');
+        }
+        setIsSubmitting(false);
+        return;
+      }
+
       const result = await signInWithGoogle(portalMode, {
         fullName: overrideName || (portalMode === 'veterinarian' ? (fullName || 'Dr. Licensed Practitioner, DVM') : (fullName || 'Pet Parent')),
         licenseNumber: overrideLicense || (portalMode === 'veterinarian' ? vetLicense : undefined),
@@ -74,6 +90,16 @@ export const AuthPage: React.FC = () => {
     const clinic = INITIAL_CLINICS.find((c) => c.id === selectedClinicId) || INITIAL_CLINICS[0];
 
     try {
+      if (!isConfigured) {
+        if (portalMode === 'veterinarian') {
+          loginAsDemoUser('veterinarian');
+        } else {
+          loginAsDemoUser('pet_owner');
+        }
+        setIsSubmitting(false);
+        return;
+      }
+
       if (isSigningUp) {
         const res = await signUpWithEmail(email, password, portalMode, {
           fullName: fullName.trim() || (portalMode === 'veterinarian' ? 'Dr. Practicing Veterinarian' : 'Pet Parent'),
@@ -120,30 +146,47 @@ export const AuthPage: React.FC = () => {
       </header>
 
       {/* Main Authentication Card */}
-      <main className="max-w-4xl w-full mx-auto px-4 py-8 sm:py-12 flex-1 flex flex-col justify-center">
+      <main className="max-w-5xl w-full mx-auto px-4 py-8 sm:py-12 flex-1 flex flex-col justify-center">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
           {/* Left Hero Pitch */}
-          <div className="lg:col-span-5 space-y-5">
+          <div className="lg:col-span-5 space-y-6">
             <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight leading-tight">
               Unified Veterinary Care & Pet Records
             </h1>
 
             <p className="text-stone-400 text-xs sm:text-sm leading-relaxed">
-              Sign in to manage pet health records, book clinic appointments, and coordinate emergency care across accredited veterinary hospitals in the Philippines.
+              Connect with accredited veterinary hospitals in the Philippines. Access digital pet passports, schedule appointments, and coordinate emergency health care.
             </p>
 
-            <div className="space-y-3 pt-2">
-              <div className="flex items-center gap-3 text-xs text-stone-300">
-                <div className="w-6 h-6 rounded-lg bg-teal-950 border border-teal-800 text-teal-400 flex items-center justify-center flex-shrink-0">
-                  <CheckCircle className="w-3.5 h-3.5" />
+            <div className="space-y-3.5 pt-2">
+              <div className="flex items-start gap-3 text-xs text-stone-300">
+                <div className="w-6 h-6 rounded-lg bg-teal-950 border border-teal-800 text-teal-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Shield className="w-3.5 h-3.5" />
                 </div>
-                <span>Philippine PRC Board-Verified Veterinary Network</span>
+                <div>
+                  <div className="font-semibold text-stone-100">Board-Accredited Veterinary Network</div>
+                  <div className="text-[11px] text-stone-400">Verified PRC practitioners and 24/7 animal trauma centers.</div>
+                </div>
               </div>
-              <div className="flex items-center gap-3 text-xs text-stone-300">
-                <div className="w-6 h-6 rounded-lg bg-teal-950 border border-teal-800 text-teal-400 flex items-center justify-center flex-shrink-0">
-                  <CheckCircle className="w-3.5 h-3.5" />
+
+              <div className="flex items-start gap-3 text-xs text-stone-300">
+                <div className="w-6 h-6 rounded-lg bg-teal-950 border border-teal-800 text-teal-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <FileText className="w-3.5 h-3.5" />
                 </div>
-                <span>Digital Pet Passport, Vitals & Vaccination Records</span>
+                <div>
+                  <div className="font-semibold text-stone-100">Digital Health Passport & Vaccines</div>
+                  <div className="text-[11px] text-stone-400">Portable medical histories, vaccination schedules, and prescriptions.</div>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 text-xs text-stone-300">
+                <div className="w-6 h-6 rounded-lg bg-teal-950 border border-teal-800 text-teal-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Calendar className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <div className="font-semibold text-stone-100">Live Booking & Consultation Tracking</div>
+                  <div className="text-[11px] text-stone-400">Real-time status updates from check-in to discharge.</div>
+                </div>
               </div>
             </div>
           </div>
@@ -153,7 +196,7 @@ export const AuthPage: React.FC = () => {
             {/* Role Selection Tabs */}
             <div className="space-y-2">
               <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-400">
-                Select Your Access Role:
+                Sign in to your account:
               </label>
               <div className="grid grid-cols-2 p-1 bg-stone-950 rounded-2xl border border-stone-800 gap-1">
                 <button
@@ -162,9 +205,9 @@ export const AuthPage: React.FC = () => {
                     setPortalMode('pet_owner');
                     setAuthError(null);
                   }}
-                  className={`flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-xs font-bold transition ${
+                  className={`flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-xs font-bold transition cursor-pointer ${
                     portalMode === 'pet_owner'
-                      ? 'bg-teal-600 text-stone-950 shadow-md'
+                      ? 'bg-teal-500 text-stone-950 shadow-md'
                       : 'text-stone-400 hover:text-white'
                   }`}
                 >
@@ -178,9 +221,9 @@ export const AuthPage: React.FC = () => {
                     setPortalMode('veterinarian');
                     setAuthError(null);
                   }}
-                  className={`flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-xs font-bold transition ${
+                  className={`flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-xs font-bold transition cursor-pointer ${
                     portalMode === 'veterinarian'
-                      ? 'bg-teal-600 text-stone-950 shadow-md'
+                      ? 'bg-teal-500 text-stone-950 shadow-md'
                       : 'text-stone-400 hover:text-white'
                   }`}
                 >
@@ -201,13 +244,13 @@ export const AuthPage: React.FC = () => {
               </div>
             )}
 
-            {/* If Veterinarian Mode: Credential Registration Fields */}
+            {/* If Veterinarian Mode: Credential Details */}
             {portalMode === 'veterinarian' && (
               <div className="bg-stone-950/80 rounded-2xl p-4 border border-stone-800 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] uppercase font-bold text-teal-400 tracking-wider flex items-center gap-1.5">
                     <FileText className="w-3.5 h-3.5" />
-                    PRC Board License Verification
+                    PRC License Credentials
                   </span>
                   <span className="text-[10px] text-stone-400 font-mono">Republic of the Philippines</span>
                 </div>
@@ -258,7 +301,7 @@ export const AuthPage: React.FC = () => {
             )}
 
             {/* Primary Action: Continue with Google */}
-            <div className="space-y-3">
+            <div className="space-y-3 pt-1">
               <button
                 type="button"
                 onClick={() => handleGoogleAuth()}
@@ -301,7 +344,7 @@ export const AuthPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setAuthMethod(authMethod === 'google' ? 'email' : 'google')}
-                  className="text-[11px] text-stone-500 hover:text-stone-300 font-medium transition"
+                  className="text-[11px] text-stone-500 hover:text-stone-300 font-medium transition cursor-pointer"
                 >
                   {authMethod === 'google' ? 'Or use Email & Password' : 'Or use Google One-Click'}
                 </button>
@@ -333,7 +376,7 @@ export const AuthPage: React.FC = () => {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder={portalMode === 'veterinarian' ? 'doctor@clinic.ph' : 'petparent@example.ph'}
+                    placeholder={portalMode === 'veterinarian' ? 'doctor@greenwoodvet.ph' : 'petparent@example.ph'}
                     className="w-full bg-stone-950 border border-stone-700 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-hidden focus:border-teal-500"
                   />
                 </div>
@@ -353,7 +396,7 @@ export const AuthPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full py-2.5 px-4 bg-teal-600 hover:bg-teal-500 text-stone-950 rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full py-2.5 px-4 bg-teal-500 hover:bg-teal-400 text-stone-950 rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {isSubmitting ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -368,7 +411,7 @@ export const AuthPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setIsSigningUp(!isSigningUp)}
-                    className="text-[11px] text-teal-400 hover:underline"
+                    className="text-[11px] text-teal-400 hover:underline cursor-pointer"
                   >
                     {isSigningUp ? 'Already have an account? Sign in' : 'Need a new account? Register here'}
                   </button>

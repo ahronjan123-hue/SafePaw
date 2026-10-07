@@ -5,6 +5,7 @@ import {
   isSupabaseConfigured,
   UserProfile,
 } from '../lib/supabase';
+import { INITIAL_VETS } from '../data/initialData';
 
 interface AuthContextType {
   user: User | null;
@@ -37,6 +38,8 @@ interface AuthContextType {
       specialization?: string;
     }
   ) => Promise<{ success: boolean; error?: string }>;
+  loginAsDemoUser: (role: 'pet_owner' | 'veterinarian' | 'pending_vet', vetId?: string) => void;
+  approvePendingVet: () => void;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateProfileDetails: (updates: Partial<UserProfile>) => Promise<{ success: boolean; error?: string }>;
@@ -127,14 +130,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  // Initialize and restore Supabase session on page load
+  // Initialize and restore Supabase session or saved demo session on page load
   useEffect(() => {
     let isMounted = true;
-
-    // Purge any old demo / mock storage items
-    try {
-      localStorage.removeItem('safepaw_supabase_auth_session_v4');
-    } catch {}
 
     const initializeAuth = async () => {
       setIsLoading(true);
@@ -154,7 +152,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const cleanMessage = decodeURIComponent(errorDesc.replace(/\+/g, ' '));
             console.error('[SafePaw] OAuth Redirect Error:', cleanMessage);
             setAuthError(`Google OAuth Notice: ${cleanMessage}. Please verify Google Provider is enabled in your Supabase project dashboard.`);
-            // Clean hash to avoid loop
             window.history.replaceState(null, '', window.location.pathname);
           }
         } catch {}
@@ -178,26 +175,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const userProfile = await fetchProfileFromSupabase(currentUser.id, currentUser.email || '');
             if (isMounted && userProfile) {
               setProfile(userProfile);
+              setIsLoading(false);
+              return;
             }
-          } else {
-            setUser(null);
-            setSession(null);
-            setProfile(null);
           }
         } catch (err) {
           console.error('[SafePaw] Auth initialization error:', err);
-          setUser(null);
-          setSession(null);
-          setProfile(null);
         }
-      } else {
-        // No supabase configured: user is unauthenticated
-        setUser(null);
-        setSession(null);
-        setProfile(null);
+      }
+
+      // Check for saved demo/test session in localStorage
+      try {
+        const savedDemo = localStorage.getItem('safepaw_active_user_session_v5');
+        if (savedDemo && isMounted) {
+          const parsed = JSON.parse(savedDemo);
+          if (parsed?.user && parsed?.profile) {
+            setUser(parsed.user);
+            setProfile(parsed.profile);
+            setIsLoading(false);
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('Error reading saved demo auth:', e);
       }
 
       if (isMounted) {
+        setUser(null);
+        setSession(null);
+        setProfile(null);
         setIsLoading(false);
       }
     };
@@ -423,6 +429,145 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Instant 1-Click Login for Testing / Demonstration
+  const loginAsDemoUser = (role: 'pet_owner' | 'veterinarian' | 'pending_vet', vetId?: string) => {
+    setIsLoading(true);
+    setAuthError(null);
+
+    let demoUser: User;
+    let demoProfile: UserProfile;
+
+    if (role === 'veterinarian') {
+      const matchedVet = INITIAL_VETS.find((v) => v.id === vetId) || INITIAL_VETS[0];
+      demoUser = {
+        id: matchedVet.id,
+        app_metadata: { provider: 'google', providers: ['google'] },
+        user_metadata: { full_name: matchedVet.name, role: 'veterinarian' },
+        aud: 'authenticated',
+        created_at: new Date().toISOString(),
+        email: matchedVet.email,
+        phone: matchedVet.phone,
+        role: 'authenticated',
+        updated_at: new Date().toISOString(),
+      } as unknown as User;
+
+      demoProfile = {
+        id: matchedVet.id,
+        email: matchedVet.email,
+        fullName: matchedVet.name,
+        avatarUrl: matchedVet.avatar,
+        role: 'veterinarian',
+        vetStatus: 'approved',
+        licenseNumber: matchedVet.licenseNumber,
+        clinicId: matchedVet.clinicId,
+        clinicName: matchedVet.clinicName,
+        specialization: matchedVet.specialization,
+        bio: matchedVet.bio,
+        phone: matchedVet.phone,
+        createdAt: new Date().toISOString(),
+      };
+
+      try {
+        localStorage.setItem('safepaw_active_vet_v3', JSON.stringify(matchedVet));
+        localStorage.setItem('safepaw_role_v3', 'veterinarian');
+      } catch {}
+    } else if (role === 'pending_vet') {
+      const pendingId = 'vet-pending-1';
+      demoUser = {
+        id: pendingId,
+        app_metadata: { provider: 'google', providers: ['google'] },
+        user_metadata: { full_name: 'Dr. Juan Dela Cruz, DVM', role: 'veterinarian' },
+        aud: 'authenticated',
+        created_at: new Date().toISOString(),
+        email: 'dr.juandelacruz@safepaw.ph',
+        phone: '+639171234567',
+        role: 'authenticated',
+        updated_at: new Date().toISOString(),
+      } as unknown as User;
+
+      demoProfile = {
+        id: pendingId,
+        email: 'dr.juandelacruz@safepaw.ph',
+        fullName: 'Dr. Juan Dela Cruz, DVM',
+        avatarUrl: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=300&q=80',
+        role: 'veterinarian',
+        vetStatus: 'pending',
+        licenseNumber: 'PRC-VET-0049821',
+        clinicId: 'clinic-1',
+        clinicName: 'Greenwood Animal Hospital & Wellness Center',
+        specialization: 'Small Animal Surgery',
+        createdAt: new Date().toISOString(),
+      };
+
+      try {
+        localStorage.setItem('safepaw_role_v3', 'veterinarian');
+      } catch {}
+    } else {
+      // Pet Owner
+      const petOwnerId = 'owner-demo-1';
+      demoUser = {
+        id: petOwnerId,
+        app_metadata: { provider: 'google', providers: ['google'] },
+        user_metadata: { full_name: 'Maria Santos', role: 'pet_owner' },
+        aud: 'authenticated',
+        created_at: new Date().toISOString(),
+        email: 'maria.santos@gmail.ph',
+        phone: '+639178889999',
+        role: 'authenticated',
+        updated_at: new Date().toISOString(),
+      } as unknown as User;
+
+      demoProfile = {
+        id: petOwnerId,
+        email: 'maria.santos@gmail.ph',
+        fullName: 'Maria Santos',
+        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
+        role: 'pet_owner',
+        vetStatus: null,
+        phone: '+639178889999',
+        bio: 'Devoted pet parent to Luna and Milo.',
+        createdAt: new Date().toISOString(),
+      };
+
+      try {
+        localStorage.setItem('safepaw_role_v3', 'pet_owner');
+      } catch {}
+    }
+
+    try {
+      localStorage.setItem('safepaw_active_user_session_v5', JSON.stringify({ user: demoUser, profile: demoProfile }));
+    } catch {}
+
+    setUser(demoUser);
+    setProfile(demoProfile);
+    setSession(null);
+    setIsLoading(false);
+  };
+
+  // Instant Board Approval Simulator for Testing
+  const approvePendingVet = () => {
+    if (!profile) return;
+    const approvedProfile: UserProfile = {
+      ...profile,
+      role: 'veterinarian',
+      vetStatus: 'approved',
+      licenseNumber: profile.licenseNumber || 'PRC-VET-0049821',
+      clinicId: profile.clinicId || 'clinic-1',
+      clinicName: profile.clinicName || 'Greenwood Animal Hospital & Wellness Center',
+      specialization: profile.specialization || 'Clinical Veterinary Medicine',
+    };
+
+    try {
+      localStorage.setItem('safepaw_role_v3', 'veterinarian');
+      localStorage.setItem(
+        'safepaw_active_user_session_v5',
+        JSON.stringify({ user, profile: approvedProfile })
+      );
+    } catch {}
+
+    setProfile(approvedProfile);
+  };
+
   // Sign Out
   const signOut = async () => {
     setIsLoading(true);
@@ -436,6 +581,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
+      localStorage.removeItem('safepaw_active_user_session_v5');
       localStorage.removeItem('safepaw_supabase_auth_session_v4');
       localStorage.removeItem('safepaw_active_vet_v3');
       localStorage.removeItem('safepaw_role_v3');
@@ -505,6 +651,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signInWithGoogle,
         signInWithEmail,
         signUpWithEmail,
+        loginAsDemoUser,
+        approvePendingVet,
         signOut,
         refreshProfile,
         updateProfileDetails,

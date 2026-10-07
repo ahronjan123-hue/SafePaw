@@ -133,15 +133,15 @@ export const ApprovalPendingView: React.FC = () => {
             </div>
           </div>
 
-          {/* Action Button */}
+          {/* Action Buttons */}
           <div className="pt-3">
             <button
               onClick={handleRefresh}
               disabled={isRefreshing}
-              className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl bg-teal-600 hover:bg-teal-500 text-stone-950 font-bold text-xs transition shadow-lg cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-teal-600 hover:bg-teal-500 text-stone-950 font-bold text-xs transition shadow-lg cursor-pointer"
             >
               <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-              <span>{isRefreshing ? 'Checking Supabase Approval Status...' : 'Check Approval Status'}</span>
+              <span>{isRefreshing ? 'Checking Accreditation Status...' : 'Check Approval Status'}</span>
             </button>
           </div>
         </div>
