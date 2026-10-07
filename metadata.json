@@ -1,0 +1,6 @@
+{
+  "name": "SafePaw - Veterinary Clinics & Pet Health",
+  "description": "SafePaw connects pet owners with verified veterinary clinics, featuring live appointment tracking, health records, multi-country currency localization, manual location override, and offline sync.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
