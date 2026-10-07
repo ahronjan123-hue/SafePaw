@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import {
   Stethoscope,
   Shield,
@@ -29,6 +30,8 @@ export const VetLoginModal: React.FC<VetLoginModalProps> = ({ isOpen, onClose })
     loginCustomVet,
     clinics,
   } = useApp();
+
+  const { signInWithGoogle, simulateApproveVet } = useAuth();
 
   const [activeTab, setActiveTab] = useState<AuthTab>('google');
   const [errorMsg, setErrorMsg] = useState('');
@@ -397,6 +400,7 @@ export const VetLoginModal: React.FC<VetLoginModalProps> = ({ isOpen, onClose })
                     key={v.id}
                     onClick={() => {
                       loginAsVet(v.id);
+                      simulateApproveVet();
                       onClose();
                     }}
                     className="w-full p-3.5 rounded-xl bg-stone-950 border border-stone-800 hover:border-teal-500 hover:bg-stone-800/90 transition flex items-center justify-between group text-left cursor-pointer"

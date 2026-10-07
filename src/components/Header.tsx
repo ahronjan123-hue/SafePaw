@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { SUPPORTED_COUNTRIES } from '../data/countries';
 import {
   Bell,
@@ -21,6 +22,8 @@ import {
   Settings,
   Globe,
   Stethoscope,
+  LogOut,
+  User,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -57,6 +60,9 @@ export const Header: React.FC<HeaderProps> = ({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [petDropdownOpen, setPetDropdownOpen] = useState(false);
   const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+
+  const { user, profile, signOut } = useAuth();
 
   const unreadNotifsCount = notifications.filter((n) => !n.read).length;
 
@@ -353,6 +359,70 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </button>
 
+            {/* Authenticated User & Sign Out Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                className="flex items-center gap-1.5 p-1 sm:px-2 sm:py-1 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-semibold transition"
+                title="Account & Session"
+              >
+                {profile?.avatarUrl ? (
+                  <img
+                    src={profile.avatarUrl}
+                    alt={profile.fullName}
+                    className="w-6 h-6 rounded-full object-cover border border-stone-300"
+                  />
+                ) : (
+                  <div className="w-6 h-6 rounded-full bg-teal-700 text-white flex items-center justify-center text-[10px] font-bold">
+                    {profile?.fullName ? profile.fullName.charAt(0).toUpperCase() : 'U'}
+                  </div>
+                )}
+                <span className="hidden sm:inline text-stone-700 truncate max-w-[90px]">
+                  {profile?.fullName?.split(' ')[0] || 'Account'}
+                </span>
+                <ChevronDown className="w-3 h-3 text-stone-500" />
+              </button>
+
+              {userDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-stone-200 py-1.5 z-50">
+                  <div className="px-3 py-2 border-b border-stone-100">
+                    <div className="text-xs font-bold text-stone-900 truncate">
+                      {profile?.fullName || user?.email}
+                    </div>
+                    <div className="text-[10px] text-stone-500 truncate">{user?.email}</div>
+                    <div className="mt-1 inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-teal-50 text-teal-800 border border-teal-200">
+                      <Shield className="w-2.5 h-2.5" />
+                      <span>{profile?.role === 'veterinarian' ? 'Veterinarian' : 'Pet Owner'}</span>
+                    </div>
+                  </div>
+
+                  <div className="p-1">
+                    <button
+                      onClick={() => {
+                        setUserDropdownOpen(false);
+                        onOpenSettings();
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-stone-700 hover:bg-stone-50 rounded-lg transition"
+                    >
+                      <Settings className="w-3.5 h-3.5 text-stone-500" />
+                      <span>Account & Preferences</span>
+                    </button>
+
+                    <button
+                      onClick={async () => {
+                        setUserDropdownOpen(false);
+                        await signOut();
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50 rounded-lg transition font-medium"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Sign Out</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Mobile Menu Toggle */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -406,6 +476,16 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Settings className="w-5 h-5 text-stone-500" />
               <span>Settings (Country, Currency & Offline)</span>
+            </button>
+            <button
+              onClick={async () => {
+                setMobileMenuOpen(false);
+                await signOut();
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 transition"
+            >
+              <LogOut className="w-5 h-5 text-rose-600" />
+              <span>Sign Out ({user?.email})</span>
             </button>
           </div>
         </div>

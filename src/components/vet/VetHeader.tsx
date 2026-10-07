@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import {
   Stethoscope,
   Calendar,
@@ -17,6 +18,7 @@ import {
   Activity,
   PlusCircle,
   ExternalLink,
+  Power,
 } from 'lucide-react';
 
 interface VetHeaderProps {
@@ -42,6 +44,8 @@ export const VetHeader: React.FC<VetHeaderProps> = ({
     formatPrice,
     getVetAppointments,
   } = useApp();
+
+  const { user, profile, signOut } = useAuth();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [vetDropdownOpen, setVetDropdownOpen] = useState(false);
@@ -97,14 +101,14 @@ export const VetHeader: React.FC<VetHeaderProps> = ({
             </button>
           </div>
 
-          {/* Switch to Pet Owner Mode button */}
+          {/* Sign Out completely button */}
           <button
-            onClick={logoutVet}
-            className="flex items-center gap-1.5 text-stone-300 hover:text-white bg-teal-900/60 hover:bg-teal-800/80 px-2.5 py-0.5 rounded text-[11px] border border-teal-700/50 transition font-medium"
-            title="Switch to Pet Owner Client Interface"
+            onClick={() => signOut()}
+            className="flex items-center gap-1.5 text-stone-300 hover:text-rose-300 bg-stone-800 hover:bg-stone-700 px-2.5 py-0.5 rounded text-[11px] border border-stone-700 transition font-medium"
+            title="Sign Out of Session"
           >
-            <LogOut className="w-3 h-3 text-teal-300" />
-            <span>Switch to Pet Owner App</span>
+            <Power className="w-3 h-3 text-rose-400" />
+            <span>Sign Out</span>
           </button>
         </div>
       </div>
@@ -227,16 +231,26 @@ export const VetHeader: React.FC<VetHeaderProps> = ({
                       {v.id === activeVet?.id && <span className="w-2 h-2 rounded-full bg-teal-400"></span>}
                     </button>
                   ))}
-                  <div className="border-t border-stone-800 mt-1 pt-1 px-1">
+                  <div className="border-t border-stone-800 mt-1 pt-1 px-1 space-y-0.5">
                     <button
                       onClick={() => {
                         setVetDropdownOpen(false);
                         logoutVet();
                       }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-rose-400 hover:bg-stone-800 rounded-lg transition"
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-stone-300 hover:bg-stone-800 rounded-lg transition"
                     >
-                      <LogOut className="w-3.5 h-3.5" />
-                      <span>Log Out to Pet Owner View</span>
+                      <LogOut className="w-3.5 h-3.5 text-teal-400" />
+                      <span>Switch to Pet Owner View</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setVetDropdownOpen(false);
+                        signOut();
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-rose-400 hover:bg-stone-800 rounded-lg transition font-medium"
+                    >
+                      <Power className="w-3.5 h-3.5 text-rose-400" />
+                      <span>Sign Out ({profile?.email || user?.email})</span>
                     </button>
                   </div>
                 </div>

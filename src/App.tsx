@@ -4,7 +4,12 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { AppProvider, useApp } from './context/AppContext';
+import { AuthPage } from './components/auth/AuthPage';
+import { AuthLoadingScreen } from './components/auth/AuthLoadingScreen';
+import { ApprovalPendingView } from './components/auth/ApprovalPendingView';
+
 import { Header } from './components/Header';
 import { OfflineBanner } from './components/OfflineBanner';
 import { NotificationDrawer } from './components/NotificationDrawer';
@@ -33,9 +38,11 @@ import { VetConsultationModal } from './components/vet/VetConsultationModal';
 import { VetRescheduleModal } from './components/vet/VetRescheduleModal';
 import { Appointment } from './types';
 
-import { Shield, Globe, Settings, WifiOff, Stethoscope, LogOut, Lock } from 'lucide-react';
+import { Shield, Globe, Settings, WifiOff, Stethoscope, LogOut, Lock, AlertTriangle } from 'lucide-react';
 
 const MainLayout: React.FC = () => {
+  const { user, profile, isLoading, signOut } = useAuth();
+
   const {
     currentRole,
     setCurrentRole,
@@ -63,15 +70,16 @@ const MainLayout: React.FC = () => {
   const [consultationPrefill, setConsultationPrefill] = useState<{ petId?: string; appointmentId?: string }>({});
   const [rescheduleAppointment, setRescheduleAppointment] = useState<Appointment | null>(null);
 
-  // Handle URL hash or path simulation for /vet
+  // Sync role based on authenticated user's profile
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const path = window.location.pathname;
-      if (path.startsWith('/vet')) {
+    if (profile) {
+      if (profile.role === 'veterinarian' && profile.vetStatus === 'approved') {
         setCurrentRole('veterinarian');
+      } else {
+        setCurrentRole('pet_owner');
       }
     }
-  }, [setCurrentRole]);
+  }, [profile, setCurrentRole]);
 
   const handleOpenConsultationModal = (petId?: string, appointmentId?: string) => {
     setConsultationPrefill({ petId, appointmentId });
@@ -81,6 +89,44 @@ const MainLayout: React.FC = () => {
   const handleOpenRescheduleModal = (apt: Appointment) => {
     setRescheduleAppointment(apt);
   };
+
+  // 1. Loading state on page load / session restoration
+  if (isLoading) {
+    return <AuthLoadingScreen />;
+  }
+
+  // 2. Unauthenticated user: Show SafePaw Authentication Entry
+  if (!user || !profile) {
+    return <AuthPage />;
+  }
+
+  // 3. Veterinarian with Pending Approval: Show Approval Pending View
+  if (profile.role === 'veterinarian' && profile.vetStatus === 'pending') {
+    return <ApprovalPendingView />;
+  }
+
+  // 4. Veterinarian with Rejected Status: Show status notification
+  if (profile.role === 'veterinarian' && profile.vetStatus === 'rejected') {
+    return (
+      <div className="min-h-screen bg-stone-950 text-stone-100 flex flex-col items-center justify-center p-6 text-center">
+        <div className="max-w-md bg-stone-900 border border-stone-800 rounded-3xl p-8 space-y-4">
+          <div className="w-14 h-14 rounded-2xl bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center mx-auto">
+            <AlertTriangle className="w-7 h-7" />
+          </div>
+          <h2 className="text-xl font-bold text-white">Application Not Approved</h2>
+          <p className="text-xs text-stone-400 leading-relaxed">
+            Your clinical credentials could not be verified by the Board at this time. Please check your submitted PRC license details or contact clinical support.
+          </p>
+          <button
+            onClick={() => signOut()}
+            className="w-full py-2.5 px-4 bg-stone-800 hover:bg-stone-700 text-white rounded-xl text-xs font-semibold transition"
+          >
+            Sign Out to Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Render Pet Owner Views
   const renderPetOwnerTab = () => {
@@ -172,8 +218,8 @@ const MainLayout: React.FC = () => {
     }
   };
 
-  // VETERINARIAN PORTAL INTERFACE
-  if (currentRole === 'veterinarian') {
+  // 5. APPROVED VETERINARIAN PORTAL INTERFACE
+  if (profile.role === 'veterinarian' && profile.vetStatus === 'approved') {
     return (
       <div className="min-h-screen bg-stone-100/80 text-stone-900 flex flex-col font-sans selection:bg-teal-200 selection:text-teal-950">
         {/* Dedicated Veterinarian Clinical Header */}
@@ -225,17 +271,17 @@ const MainLayout: React.FC = () => {
                 </span>
                 <span className="text-stone-600">|</span>
                 <span className="text-stone-400">
-                  Practitioner: <strong>{activeVet?.name}</strong> ({activeVet?.licenseNumber})
+                  Practitioner: <strong>{profile.fullName || activeVet?.name}</strong> ({profile.licenseNumber || activeVet?.licenseNumber})
                 </span>
               </div>
 
               <div className="flex items-center gap-4 text-[11px]">
                 <button
-                  onClick={() => setCurrentRole('pet_owner')}
-                  className="text-teal-400 hover:text-teal-300 font-semibold underline underline-offset-2 flex items-center gap-1"
+                  onClick={() => signOut()}
+                  className="text-rose-400 hover:text-rose-300 font-semibold underline underline-offset-2 flex items-center gap-1"
                 >
                   <LogOut className="w-3 h-3" />
-                  <span>Exit to Pet Owner Interface</span>
+                  <span>Sign Out</span>
                 </button>
               </div>
             </div>
@@ -245,7 +291,7 @@ const MainLayout: React.FC = () => {
     );
   }
 
-  // PET OWNER INTERFACE
+  // 6. PET OWNER INTERFACE
   return (
     <div className="min-h-screen bg-stone-100/70 text-stone-900 flex flex-col font-sans selection:bg-teal-100 selection:text-teal-900">
       {/* Sticky Header with Navigation, Pet Switcher, Settings & Vet Portal link */}
@@ -316,7 +362,7 @@ const MainLayout: React.FC = () => {
               </p>
               <div className="flex items-center gap-1.5 text-teal-400 text-[11px] font-medium">
                 <Shield className="w-3.5 h-3.5" />
-                <span>Zero-Trust Medical Encryption</span>
+                <span>Verified Veterinary Health Network</span>
               </div>
             </div>
 
@@ -409,8 +455,9 @@ const MainLayout: React.FC = () => {
           <div className="pt-8 mt-8 border-t border-stone-800 flex flex-col sm:flex-row items-center justify-between text-stone-400 text-[11px] gap-2">
             <div>© {new Date().getFullYear()} SafePaw Connect Platform. All rights reserved.</div>
             <div className="flex items-center gap-4">
-              <button onClick={() => setVetLoginModalOpen(true)} className="hover:text-teal-300 text-teal-400 font-medium">
-                Doctor Login
+              <button onClick={() => signOut()} className="hover:text-rose-300 text-rose-400 font-medium flex items-center gap-1">
+                <LogOut className="w-3 h-3" />
+                <span>Sign Out ({user.email})</span>
               </button>
               <span>·</span>
               <button onClick={() => setSettingsOpen(true)} className="hover:text-stone-200">
@@ -430,8 +477,10 @@ const MainLayout: React.FC = () => {
 
 export default function App() {
   return (
-    <AppProvider>
-      <MainLayout />
-    </AppProvider>
+    <AuthProvider>
+      <AppProvider>
+        <MainLayout />
+      </AppProvider>
+    </AuthProvider>
   );
 }
