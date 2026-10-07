@@ -51,27 +51,3 @@ export interface UserProfile {
   createdAt: string;
   updatedAt?: string;
 }
-
-// Local demo storage fallback key for session restoration when env keys are being setup
-const DEMO_AUTH_STORAGE_KEY = 'safepaw_supabase_auth_session_v4';
-
-export const getStoredDemoSession = (): { user: User; profile: UserProfile; session: Session } | null => {
-  try {
-    const data = localStorage.getItem(DEMO_AUTH_STORAGE_KEY);
-    return data ? JSON.parse(data) : null;
-  } catch {
-    return null;
-  }
-};
-
-export const saveStoredDemoSession = (sessionData: { user: any; profile: UserProfile; session: any } | null) => {
-  try {
-    if (sessionData) {
-      localStorage.setItem(DEMO_AUTH_STORAGE_KEY, JSON.stringify(sessionData));
-    } else {
-      localStorage.removeItem(DEMO_AUTH_STORAGE_KEY);
-    }
-  } catch (err) {
-    console.warn('[SafePaw] Error persisting session cache:', err);
-  }
-};

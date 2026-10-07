@@ -254,36 +254,6 @@ export const AuthPage: React.FC = () => {
                     </div>
                   </div>
                 </div>
-
-                {/* Quick Pre-Approved Roster Buttons for immediate evaluation */}
-                <div className="pt-2 border-t border-stone-800">
-                  <div className="text-[10px] text-stone-400 uppercase font-semibold mb-1.5 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-teal-400" />
-                    <span>Quick Test Accounts (Instant Approved Access):</span>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                    {INITIAL_VETS.slice(0, 2).map((vet) => (
-                      <button
-                        key={vet.id}
-                        type="button"
-                        onClick={() => {
-                          setVetLicense(vet.licenseNumber);
-                          setSelectedClinicId(vet.clinicId);
-                          setFullName(vet.name);
-                          setVetSpecialization(vet.specialization);
-                          handleGoogleAuth(vet.email, vet.name, vet.licenseNumber);
-                        }}
-                        className="flex items-center gap-2 p-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 border border-stone-700 text-left transition"
-                      >
-                        <img src={vet.avatar} alt={vet.name} className="w-6 h-6 rounded-full object-cover" />
-                        <div className="truncate">
-                          <div className="text-[11px] font-bold text-stone-200 truncate">{vet.name}</div>
-                          <div className="text-[9px] text-teal-400 font-mono">{vet.licenseNumber}</div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </div>
             )}
 

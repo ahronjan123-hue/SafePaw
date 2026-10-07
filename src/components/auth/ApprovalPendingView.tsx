@@ -2,33 +2,21 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import {
   Clock,
-  Shield,
   Stethoscope,
   CheckCircle,
-  AlertCircle,
   LogOut,
   RefreshCw,
-  Building,
   FileCheck,
-  ChevronRight,
-  Sparkles,
 } from 'lucide-react';
 
 export const ApprovalPendingView: React.FC = () => {
-  const { profile, signOut, refreshProfile, simulateApproveVet } = useAuth();
+  const { profile, signOut, refreshProfile } = useAuth();
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isApproving, setIsApproving] = useState(false);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
     await refreshProfile();
     setTimeout(() => setIsRefreshing(false), 800);
-  };
-
-  const handleSimulateApproval = async () => {
-    setIsApproving(true);
-    await simulateApproveVet();
-    setIsApproving(false);
   };
 
   return (
@@ -42,7 +30,7 @@ export const ApprovalPendingView: React.FC = () => {
             </div>
             <div>
               <span className="font-bold text-white text-base tracking-tight">SafePaw Clinical EMR</span>
-              <span className="hidden sm:inline-block ml-2 text-[11px] uppercase tracking-wider text-teal-400 font-mono font-semibold">
+              <span className="hidden sm:inline-block ml-2 text-[10px] uppercase tracking-wider text-teal-400 font-mono font-semibold">
                 Accreditation Board
               </span>
             </div>
@@ -50,7 +38,7 @@ export const ApprovalPendingView: React.FC = () => {
 
           <button
             onClick={signOut}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white text-xs font-medium transition"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white text-xs font-medium transition cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span>Sign Out</span>
@@ -70,7 +58,7 @@ export const ApprovalPendingView: React.FC = () => {
               Veterinarian Approval Pending
             </h2>
             <p className="text-stone-400 text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
-              Thank you for registering with SafePaw. Your professional veterinary credentials have been submitted and are currently awaiting review by the Clinical Board.
+              Your veterinary credentials have been submitted and are currently awaiting review by the Clinical Board.
             </p>
           </div>
 
@@ -89,7 +77,7 @@ export const ApprovalPendingView: React.FC = () => {
               <div>
                 <span className="text-stone-500 block text-[11px]">PRC License Number:</span>
                 <span className="font-mono font-bold text-teal-300">
-                  {profile?.licenseNumber || 'PRC-VET-PENDING-CHECK'}
+                  {profile?.licenseNumber || 'PRC-VET-PENDING'}
                 </span>
               </div>
               <div>
@@ -112,7 +100,7 @@ export const ApprovalPendingView: React.FC = () => {
             <div className="text-xs font-semibold text-stone-300">Accreditation Process:</div>
             <div className="space-y-2">
               <div className="flex items-center gap-3 p-3 rounded-xl bg-stone-950/60 border border-stone-800 text-xs">
-                <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0">
+                <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
                   <CheckCircle className="w-3.5 h-3.5" />
                 </div>
                 <div className="flex-1">
@@ -122,7 +110,7 @@ export const ApprovalPendingView: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs">
-                <div className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center flex-shrink-0">
+                <div className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
                   <Clock className="w-3.5 h-3.5 animate-spin" />
                 </div>
                 <div className="flex-1">
@@ -134,7 +122,7 @@ export const ApprovalPendingView: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-3 p-3 rounded-xl bg-stone-950/60 border border-stone-800/80 text-xs opacity-60">
-                <div className="w-6 h-6 rounded-full bg-stone-800 text-stone-400 flex items-center justify-center flex-shrink-0">
+                <div className="w-6 h-6 rounded-full bg-stone-800 text-stone-400 flex items-center justify-center shrink-0">
                   <Stethoscope className="w-3.5 h-3.5" />
                 </div>
                 <div className="flex-1">
@@ -145,26 +133,15 @@ export const ApprovalPendingView: React.FC = () => {
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="pt-3 flex flex-col sm:flex-row gap-3">
+          {/* Action Button */}
+          <div className="pt-3">
             <button
               onClick={handleRefresh}
               disabled={isRefreshing}
-              className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-stone-800 hover:bg-stone-700 text-white font-semibold text-xs transition border border-stone-700"
+              className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl bg-teal-600 hover:bg-teal-500 text-stone-950 font-bold text-xs transition shadow-lg cursor-pointer"
             >
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-teal-400' : ''}`} />
-              <span>{isRefreshing ? 'Checking Status...' : 'Check Approval Status'}</span>
-            </button>
-
-            {/* Test Simulation Button for instant review */}
-            <button
-              onClick={handleSimulateApproval}
-              disabled={isApproving}
-              className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-teal-600 hover:bg-teal-500 text-stone-950 font-bold text-xs transition shadow-lg shadow-teal-900/30"
-              title="Instantly grant approved veterinarian status for testing"
-            >
-              <Sparkles className="w-4 h-4" />
-              <span>{isApproving ? 'Activating...' : 'Simulate Board Approval (Test)'}</span>
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <span>{isRefreshing ? 'Checking Supabase Approval Status...' : 'Check Approval Status'}</span>
             </button>
           </div>
         </div>

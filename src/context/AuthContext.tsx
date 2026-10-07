@@ -4,10 +4,7 @@ import {
   getSupabase,
   isSupabaseConfigured,
   UserProfile,
-  getStoredDemoSession,
-  saveStoredDemoSession,
 } from '../lib/supabase';
-import { INITIAL_VETS } from '../data/initialData';
 
 interface AuthContextType {
   user: User | null;
@@ -43,7 +40,6 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateProfileDetails: (updates: Partial<UserProfile>) => Promise<{ success: boolean; error?: string }>;
-  simulateApproveVet: (vetId?: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -69,7 +65,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .single();
 
       if (error && error.code !== 'PGRST116') {
-        console.warn('[SafePaw] Error loading profile from Supabase:', error.message);
+        console.warn('[SafePaw] Profile query warning:', error.message);
       }
 
       if (data) {
@@ -91,24 +87,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
       }
 
-      // Check if email matches a pre-approved doctor roster
-      const matchedDoctor = INITIAL_VETS.find((v) => v.email.toLowerCase() === userEmail.toLowerCase());
-      const isDoctor = !!matchedDoctor;
+      // If user profile is not yet in public.profiles table, create it from auth metadata
+      const sessionUser = (await supabase.auth.getUser()).data.user;
+      const metadata = sessionUser?.user_metadata || {};
+      const intendedRole = metadata.role || 'pet_owner';
+      const initialVetStatus = intendedRole === 'veterinarian' ? 'pending' : null;
 
-      // Create initial profile if missing
       const newProfile: UserProfile = {
         id: userId,
         email: userEmail,
-        fullName: matchedDoctor ? matchedDoctor.name : userEmail.split('@')[0],
-        avatarUrl: matchedDoctor ? matchedDoctor.avatar : '',
-        role: isDoctor ? 'veterinarian' : 'pet_owner',
-        vetStatus: isDoctor ? 'approved' : null,
-        licenseNumber: matchedDoctor?.licenseNumber || '',
-        clinicId: matchedDoctor?.clinicId || '',
-        clinicName: matchedDoctor?.clinicName || '',
-        specialization: matchedDoctor?.specialization || '',
-        bio: matchedDoctor?.bio || '',
-        phone: matchedDoctor?.phone || '',
+        fullName: metadata.full_name || metadata.name || userEmail.split('@')[0],
+        avatarUrl: metadata.avatar_url || metadata.picture || '',
+        role: intendedRole,
+        vetStatus: initialVetStatus,
+        licenseNumber: metadata.license_number || '',
+        clinicId: metadata.clinic_id || '',
+        clinicName: metadata.clinic_name || '',
+        specialization: metadata.specialization || '',
         createdAt: new Date().toISOString(),
       };
 
@@ -119,12 +114,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         avatar_url: newProfile.avatarUrl,
         role: newProfile.role,
         vet_status: newProfile.vetStatus,
-        license_number: newProfile.licenseNumber,
-        clinic_id: newProfile.clinicId,
-        clinic_name: newProfile.clinicName,
-        specialization: newProfile.specialization,
-        bio: newProfile.bio,
-        phone: newProfile.phone,
+        license_number: newProfile.licenseNumber || null,
+        clinic_id: newProfile.clinicId || null,
+        clinic_name: newProfile.clinicName || null,
+        specialization: newProfile.specialization || null,
       });
 
       return newProfile;
@@ -134,9 +127,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  // Initialize and restore session on page load
+  // Initialize and restore Supabase session on page load
   useEffect(() => {
     let isMounted = true;
+
+    // Purge any old demo / mock storage items
+    try {
+      localStorage.removeItem('safepaw_supabase_auth_session_v4');
+    } catch {}
 
     const initializeAuth = async () => {
       setIsLoading(true);
@@ -146,7 +144,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
           const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
           if (sessionError) {
-            console.warn('[SafePaw] Supabase session fetch warning:', sessionError.message);
+            console.warn('[SafePaw] Session restoration note:', sessionError.message);
           }
 
           if (sessionData?.session?.user && isMounted) {
@@ -160,30 +158,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               setProfile(userProfile);
             }
           } else {
-            // Check if there was any pending OAuth callback
-            const hash = window.location.hash;
-            if (!hash.includes('access_token')) {
-              // No Supabase session
-              setUser(null);
-              setSession(null);
-              setProfile(null);
-            }
+            setUser(null);
+            setSession(null);
+            setProfile(null);
           }
         } catch (err) {
           console.error('[SafePaw] Auth initialization error:', err);
-        }
-      } else {
-        // Fallback: Check local authenticated session cache
-        const stored = getStoredDemoSession();
-        if (stored && isMounted) {
-          setUser(stored.user);
-          setSession(stored.session);
-          setProfile(stored.profile);
-        } else {
           setUser(null);
           setSession(null);
           setProfile(null);
         }
+      } else {
+        // No supabase configured: user is unauthenticated
+        setUser(null);
+        setSession(null);
+        setProfile(null);
       }
 
       if (isMounted) {
@@ -212,7 +201,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setSession(null);
           setUser(null);
           setProfile(null);
-          saveStoredDemoSession(null);
         }
         setIsLoading(false);
       });
@@ -227,7 +215,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [fetchProfileFromSupabase]);
 
-  // Sign In with Google OAuth
+  // Sign In with Google OAuth (Real Supabase Auth Only)
   const signInWithGoogle = async (
     role: 'pet_owner' | 'veterinarian',
     extraData?: {
@@ -243,178 +231,89 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const supabase = getSupabase();
 
-    if (supabase) {
-      try {
-        // Save intended role and metadata in sessionStorage so callback creates correct role
-        if (typeof window !== 'undefined') {
-          sessionStorage.setItem('safepaw_intended_role', role);
-          if (extraData) {
-            sessionStorage.setItem('safepaw_intended_metadata', JSON.stringify(extraData));
-          }
+    if (!supabase) {
+      setIsLoading(false);
+      const msg = 'Supabase is not configured yet. Please configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your deployment environment variables.';
+      setAuthError(msg);
+      return { success: false, error: msg };
+    }
+
+    try {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('safepaw_intended_role', role);
+        if (extraData) {
+          sessionStorage.setItem('safepaw_intended_metadata', JSON.stringify(extraData));
         }
-
-        const { error } = await supabase.auth.signInWithOAuth({
-          provider: 'google',
-          options: {
-            redirectTo: window.location.origin,
-            queryParams: {
-              access_type: 'offline',
-              prompt: 'consent',
-            },
-          },
-        });
-
-        if (error) {
-          setAuthError(error.message);
-          setIsLoading(false);
-          return { success: false, error: error.message };
-        }
-
-        return { success: true };
-      } catch (err: any) {
-        const msg = err.message || 'Error redirecting to Google OAuth.';
-        setAuthError(msg);
-        setIsLoading(false);
-        return { success: false, error: msg };
       }
-    } else {
-      // Local preview / Instant Verification Handler
-      try {
-        const demoEmail = extraData?.fullName
-          ? `${extraData.fullName.toLowerCase().replace(/[^a-z0-9]/g, '')}@gmail.com`
-          : role === 'veterinarian'
-          ? 'elena.ramos@greenwoodvet.ph'
-          : 'petparent@gmail.com';
 
-        const matchedDoc = INITIAL_VETS.find((v) => v.email.toLowerCase() === demoEmail.toLowerCase());
-        const isVet = role === 'veterinarian';
-
-        // Check if pre-approved or pending
-        const isApproved = isVet && (matchedDoc || extraData?.licenseNumber?.startsWith('PRC-VET-0038912') || extraData?.licenseNumber?.startsWith('PRC-VET-0041289'));
-
-        const mockUser: any = {
-          id: `usr-${Date.now()}`,
-          email: demoEmail,
-          user_metadata: {
-            full_name: extraData?.fullName || (isVet ? (matchedDoc?.name || 'Dr. Registered Practitioner, DVM') : 'Verified Pet Parent'),
-            avatar_url: isVet ? (matchedDoc?.avatar || 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=300&q=80') : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent select_account',
           },
-          app_metadata: { provider: 'google' },
-          aud: 'authenticated',
-          created_at: new Date().toISOString(),
-        };
+        },
+      });
 
-        const mockProfile: UserProfile = {
-          id: mockUser.id,
-          email: demoEmail,
-          fullName: mockUser.user_metadata.full_name,
-          avatarUrl: mockUser.user_metadata.avatar_url,
-          role: isVet ? 'veterinarian' : 'pet_owner',
-          vetStatus: isVet ? (isApproved ? 'approved' : 'pending') : null,
-          licenseNumber: extraData?.licenseNumber || (isVet ? (matchedDoc?.licenseNumber || 'PRC-VET-0098412') : undefined),
-          clinicId: extraData?.clinicId || (isVet ? (matchedDoc?.clinicId || 'clinic-1') : undefined),
-          clinicName: extraData?.clinicName || (isVet ? (matchedDoc?.clinicName || 'Greenwood Animal Hospital') : undefined),
-          specialization: extraData?.specialization || (isVet ? (matchedDoc?.specialization || 'General Clinical Medicine') : undefined),
-          bio: matchedDoc?.bio || 'Dedicated animal care practitioner.',
-          phone: matchedDoc?.phone || '+63 917 834 9210',
-          createdAt: new Date().toISOString(),
-        };
-
-        const mockSession: any = {
-          access_token: `token-${Date.now()}`,
-          token_type: 'bearer',
-          expires_in: 3600,
-          user: mockUser,
-        };
-
-        setUser(mockUser);
-        setSession(mockSession);
-        setProfile(mockProfile);
-        saveStoredDemoSession({ user: mockUser, profile: mockProfile, session: mockSession });
+      if (error) {
+        setAuthError(error.message);
         setIsLoading(false);
-        return { success: true };
-      } catch (err: any) {
-        setIsLoading(false);
-        setAuthError(err.message || 'Authentication error.');
-        return { success: false, error: err.message };
+        return { success: false, error: error.message };
       }
+
+      return { success: true };
+    } catch (err: any) {
+      const msg = err.message || 'Error initializing Google OAuth flow.';
+      setAuthError(msg);
+      setIsLoading(false);
+      return { success: false, error: msg };
     }
   };
 
-  // Sign In with Email & Password
+  // Sign In with Email & Password (Real Supabase Auth Only)
   const signInWithEmail = async (email: string, pass: string): Promise<{ success: boolean; error?: string }> => {
     setAuthError(null);
     setIsLoading(true);
 
     const supabase = getSupabase();
-    if (supabase) {
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password: pass,
-        });
+    if (!supabase) {
+      setIsLoading(false);
+      const msg = 'Supabase is not configured. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your environment.';
+      setAuthError(msg);
+      return { success: false, error: msg };
+    }
 
-        if (error) {
-          setAuthError(error.message);
-          setIsLoading(false);
-          return { success: false, error: error.message };
-        }
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: pass,
+      });
 
-        if (data?.user) {
-          setUser(data.user);
-          setSession(data.session);
-          const prof = await fetchProfileFromSupabase(data.user.id, data.user.email || '');
-          setProfile(prof);
-        }
+      if (error) {
+        setAuthError(error.message);
         setIsLoading(false);
-        return { success: true };
-      } catch (err: any) {
-        setIsLoading(false);
-        const msg = err.message || 'Failed to sign in with email.';
-        setAuthError(msg);
-        return { success: false, error: msg };
+        return { success: false, error: error.message };
       }
-    } else {
-      // Local fallback
-      const isElena = email.toLowerCase().includes('elena') || email.toLowerCase().includes('ramos');
-      const mockUser: any = {
-        id: `usr-email-${Date.now()}`,
-        email: email.trim(),
-        user_metadata: {
-          full_name: isElena ? 'Dr. Elena Ramos, DVM' : email.split('@')[0],
-        },
-        aud: 'authenticated',
-        created_at: new Date().toISOString(),
-      };
 
-      const mockProfile: UserProfile = {
-        id: mockUser.id,
-        email: email.trim(),
-        fullName: isElena ? 'Dr. Elena Ramos, DVM' : email.split('@')[0],
-        role: isElena ? 'veterinarian' : 'pet_owner',
-        vetStatus: isElena ? 'approved' : null,
-        licenseNumber: isElena ? 'PRC-VET-0038912' : undefined,
-        clinicId: isElena ? 'clinic-1' : undefined,
-        clinicName: isElena ? 'Greenwood Animal Hospital' : undefined,
-        specialization: isElena ? 'Canine & Feline Internal Medicine' : undefined,
-        createdAt: new Date().toISOString(),
-      };
-
-      const mockSession: any = {
-        access_token: `token-email-${Date.now()}`,
-        user: mockUser,
-      };
-
-      setUser(mockUser);
-      setSession(mockSession);
-      setProfile(mockProfile);
-      saveStoredDemoSession({ user: mockUser, profile: mockProfile, session: mockSession });
+      if (data?.user) {
+        setUser(data.user);
+        setSession(data.session);
+        const prof = await fetchProfileFromSupabase(data.user.id, data.user.email || '');
+        setProfile(prof);
+      }
       setIsLoading(false);
       return { success: true };
+    } catch (err: any) {
+      setIsLoading(false);
+      const msg = err.message || 'Failed to sign in with email.';
+      setAuthError(msg);
+      return { success: false, error: msg };
     }
   };
 
-  // Sign Up with Email & Password
+  // Sign Up with Email & Password (Real Supabase Auth Only)
   const signUpWithEmail = async (
     email: string,
     pass: string,
@@ -431,104 +330,74 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
 
     const supabase = getSupabase();
-    if (supabase) {
-      try {
-        const { data, error } = await supabase.auth.signUp({
-          email: email.trim(),
-          password: pass,
-          options: {
-            data: {
-              full_name: extraData?.fullName || email.split('@')[0],
-              role,
-              vet_status: role === 'veterinarian' ? 'pending' : null,
-              license_number: extraData?.licenseNumber || null,
-              clinic_id: extraData?.clinicId || null,
-              clinic_name: extraData?.clinicName || null,
-              specialization: extraData?.specialization || null,
-            },
+    if (!supabase) {
+      setIsLoading(false);
+      const msg = 'Supabase is not configured. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your environment.';
+      setAuthError(msg);
+      return { success: false, error: msg };
+    }
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: pass,
+        options: {
+          data: {
+            full_name: extraData?.fullName || email.split('@')[0],
+            role,
+            vet_status: role === 'veterinarian' ? 'pending' : null,
+            license_number: extraData?.licenseNumber || null,
+            clinic_id: extraData?.clinicId || null,
+            clinic_name: extraData?.clinicName || null,
+            specialization: extraData?.specialization || null,
           },
+        },
+      });
+
+      if (error) {
+        setAuthError(error.message);
+        setIsLoading(false);
+        return { success: false, error: error.message };
+      }
+
+      if (data?.user) {
+        setUser(data.user);
+        setSession(data.session);
+
+        const prof: UserProfile = {
+          id: data.user.id,
+          email: data.user.email || email,
+          fullName: extraData?.fullName || email.split('@')[0],
+          role,
+          vetStatus: role === 'veterinarian' ? 'pending' : null,
+          licenseNumber: extraData?.licenseNumber,
+          clinicId: extraData?.clinicId,
+          clinicName: extraData?.clinicName,
+          specialization: extraData?.specialization,
+          createdAt: new Date().toISOString(),
+        };
+
+        await supabase.from('profiles').upsert({
+          id: prof.id,
+          email: prof.email,
+          full_name: prof.fullName,
+          role: prof.role,
+          vet_status: prof.vetStatus,
+          license_number: prof.licenseNumber || null,
+          clinic_id: prof.clinicId || null,
+          clinic_name: prof.clinicName || null,
+          specialization: prof.specialization || null,
         });
 
-        if (error) {
-          setAuthError(error.message);
-          setIsLoading(false);
-          return { success: false, error: error.message };
-        }
-
-        if (data?.user) {
-          setUser(data.user);
-          setSession(data.session);
-
-          // Save profile record
-          const prof: UserProfile = {
-            id: data.user.id,
-            email: data.user.email || email,
-            fullName: extraData?.fullName || email.split('@')[0],
-            role,
-            vetStatus: role === 'veterinarian' ? 'pending' : null,
-            licenseNumber: extraData?.licenseNumber,
-            clinicId: extraData?.clinicId,
-            clinicName: extraData?.clinicName,
-            specialization: extraData?.specialization,
-            createdAt: new Date().toISOString(),
-          };
-
-          await supabase.from('profiles').upsert({
-            id: prof.id,
-            email: prof.email,
-            full_name: prof.fullName,
-            role: prof.role,
-            vet_status: prof.vetStatus,
-            license_number: prof.licenseNumber || null,
-            clinic_id: prof.clinicId || null,
-            clinic_name: prof.clinicName || null,
-            specialization: prof.specialization || null,
-          });
-
-          setProfile(prof);
-        }
-        setIsLoading(false);
-        return { success: true };
-      } catch (err: any) {
-        setIsLoading(false);
-        const msg = err.message || 'Failed to sign up.';
-        setAuthError(msg);
-        return { success: false, error: msg };
+        setProfile(prof);
       }
-    } else {
-      // Local fallback
-      const mockUser: any = {
-        id: `usr-new-${Date.now()}`,
-        email: email.trim(),
-        user_metadata: { full_name: extraData?.fullName || email.split('@')[0] },
-        aud: 'authenticated',
-        created_at: new Date().toISOString(),
-      };
-
-      const mockProfile: UserProfile = {
-        id: mockUser.id,
-        email: email.trim(),
-        fullName: extraData?.fullName || email.split('@')[0],
-        role,
-        vetStatus: role === 'veterinarian' ? 'pending' : null,
-        licenseNumber: extraData?.licenseNumber,
-        clinicId: extraData?.clinicId,
-        clinicName: extraData?.clinicName,
-        specialization: extraData?.specialization,
-        createdAt: new Date().toISOString(),
-      };
-
-      const mockSession: any = {
-        access_token: `token-signup-${Date.now()}`,
-        user: mockUser,
-      };
-
-      setUser(mockUser);
-      setSession(mockSession);
-      setProfile(mockProfile);
-      saveStoredDemoSession({ user: mockUser, profile: mockProfile, session: mockSession });
       setIsLoading(false);
       return { success: true };
+    } catch (err: any) {
+      setIsLoading(false);
+      const msg = err.message || 'Failed to sign up.';
+      setAuthError(msg);
+      return { success: false, error: msg };
     }
   };
 
@@ -540,11 +409,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         await supabase.auth.signOut();
       } catch (err) {
-        console.warn('[SafePaw] Sign out warning:', err);
+        console.warn('[SafePaw] Sign out error:', err);
       }
     }
 
-    saveStoredDemoSession(null);
+    try {
+      localStorage.removeItem('safepaw_supabase_auth_session_v4');
+      localStorage.removeItem('safepaw_active_vet_v3');
+      localStorage.removeItem('safepaw_role_v3');
+      sessionStorage.clear();
+    } catch {}
+
     setUser(null);
     setSession(null);
     setProfile(null);
@@ -567,7 +442,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user || !profile) return { success: false, error: 'No authenticated session.' };
 
     const supabase = getSupabase();
-    // Enforce safety: do not allow frontend user to change role or vetStatus arbitrarily
     const safeUpdates = { ...updates };
     delete safeUpdates.role;
     delete safeUpdates.vetStatus;
@@ -593,34 +467,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const updatedProfile = { ...profile, ...safeUpdates };
     setProfile(updatedProfile);
-    if (!supabase) {
-      saveStoredDemoSession({ user, profile: updatedProfile, session });
-    }
     return { success: true };
-  };
-
-  // Developer / Admin simulation for testing vet approval
-  const simulateApproveVet = async () => {
-    if (!profile || profile.role !== 'veterinarian') return;
-    const updated: UserProfile = {
-      ...profile,
-      vetStatus: 'approved',
-    };
-    setProfile(updated);
-
-    const supabase = getSupabase();
-    if (supabase && user) {
-      try {
-        await supabase
-          .from('profiles')
-          .update({ vet_status: 'approved', updated_at: new Date().toISOString() })
-          .eq('id', user.id);
-      } catch (e) {
-        console.warn('[SafePaw] Supabase vet approval sync note:', e);
-      }
-    } else {
-      saveStoredDemoSession({ user, profile: updated, session });
-    }
   };
 
   return (
@@ -639,7 +486,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signOut,
         refreshProfile,
         updateProfileDetails,
-        simulateApproveVet,
       }}
     >
       {children}
