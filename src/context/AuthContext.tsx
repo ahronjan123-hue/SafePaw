@@ -138,6 +138,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const initializeAuth = async () => {
       setIsLoading(true);
+
+      // Check for OAuth redirect errors in URL hash/query
+      if (typeof window !== 'undefined') {
+        try {
+          const hashParams = new URLSearchParams(window.location.hash.substring(1));
+          const searchParams = new URLSearchParams(window.location.search);
+          const errorDesc =
+            hashParams.get('error_description') ||
+            searchParams.get('error_description') ||
+            hashParams.get('error') ||
+            searchParams.get('error');
+
+          if (errorDesc) {
+            const cleanMessage = decodeURIComponent(errorDesc.replace(/\+/g, ' '));
+            console.error('[SafePaw] OAuth Redirect Error:', cleanMessage);
+            setAuthError(`Google OAuth Notice: ${cleanMessage}. Please verify Google Provider is enabled in your Supabase project dashboard.`);
+            // Clean hash to avoid loop
+            window.history.replaceState(null, '', window.location.pathname);
+          }
+        } catch {}
+      }
+
       const supabase = getSupabase();
 
       if (supabase) {
