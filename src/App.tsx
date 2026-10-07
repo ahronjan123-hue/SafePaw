@@ -77,7 +77,7 @@ const MainLayout: React.FC = () => {
   useEffect(() => {
     if (!profile) return;
 
-    if (profile.role === 'veterinarian' && profile.vetStatus === 'approved') {
+    if (profile.role === 'veterinarian') {
       const matched = availableVets.find(
         (v) =>
           v.licenseNumber === profile.licenseNumber ||
@@ -91,7 +91,7 @@ const MainLayout: React.FC = () => {
       } else if (!activeVet || activeVet.id !== profile.id || currentRole !== 'veterinarian') {
         loginCustomVet({
           id: profile.id,
-          name: profile.fullName,
+          name: profile.fullName || 'Dr. Attending Practitioner, DVM',
           email: profile.email,
           phone: profile.phone || '+639178349210',
           title: 'Attending Clinical Veterinarian',
@@ -109,9 +109,8 @@ const MainLayout: React.FC = () => {
           createdAt: profile.createdAt || new Date().toISOString(),
         });
       }
-    } else if (profile.role === 'pet_owner') {
-      if (currentRole !== 'pet_owner') {
-        setCurrentRole('pet_owner');
+      if (currentRole !== 'veterinarian') {
+        setCurrentRole('veterinarian');
       }
     }
   }, [profile?.id, profile?.role, profile?.vetStatus]);

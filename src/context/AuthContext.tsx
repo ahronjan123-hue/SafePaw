@@ -25,7 +25,18 @@ interface AuthContextType {
       specialization?: string;
     }
   ) => Promise<{ success: boolean; error?: string }>;
-  signInWithEmail: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  signInWithEmail: (
+    email: string,
+    password: string,
+    role?: 'pet_owner' | 'veterinarian',
+    extraData?: {
+      fullName?: string;
+      licenseNumber?: string;
+      clinicId?: string;
+      clinicName?: string;
+      specialization?: string;
+    }
+  ) => Promise<{ success: boolean; error?: string }>;
   signUpWithEmail: (
     email: string,
     password: string,
@@ -37,6 +48,10 @@ interface AuthContextType {
       clinicName?: string;
       specialization?: string;
     }
+  ) => Promise<{ success: boolean; error?: string }>;
+  switchRole: (
+    newRole: 'pet_owner' | 'veterinarian',
+    vetDetails?: Partial<UserProfile>
   ) => Promise<{ success: boolean; error?: string }>;
   loginAsDemoUser: (role: 'pet_owner' | 'veterinarian' | 'pending_vet', vetId?: string) => void;
   approvePendingVet: () => void;
@@ -60,6 +75,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const supabase = getSupabase();
     if (!supabase) return null;
 
+    // Check if there was an intended role (e.g. from Google OAuth or Veterinarian portal redirect)
+    let intendedRole: 'pet_owner' | 'veterinarian' | null = null;
+    let intendedMeta: any = null;
+    if (typeof window !== 'undefined') {
+      try {
+        const storedRole = sessionStorage.getItem('safepaw_intended_role') as any;
+        if (storedRole === 'veterinarian' || storedRole === 'pet_owner') {
+          intendedRole = storedRole;
+        }
+        const storedMeta = sessionStorage.getItem('safepaw_intended_metadata');
+        if (storedMeta) {
+          intendedMeta = JSON.parse(storedMeta);
+        }
+        sessionStorage.removeItem('safepaw_intended_role');
+        sessionStorage.removeItem('safepaw_intended_metadata');
+      } catch {}
+    }
+
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -72,17 +105,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (data) {
+        const effectiveRole = intendedRole || data.role || 'pet_owner';
+        const effectiveVetStatus = effectiveRole === 'veterinarian' ? 'approved' : (data.vet_status || null);
+        const effectiveLicense = intendedMeta?.licenseNumber || data.license_number || (effectiveRole === 'veterinarian' ? 'PRC-VET-0049821' : '');
+        const effectiveClinicId = intendedMeta?.clinicId || data.clinic_id || (effectiveRole === 'veterinarian' ? 'clinic-1' : '');
+        const effectiveClinicName = intendedMeta?.clinicName || data.clinic_name || (effectiveRole === 'veterinarian' ? 'Greenwood Animal Hospital & Wellness Center' : '');
+        const effectiveSpec = intendedMeta?.specialization || data.specialization || (effectiveRole === 'veterinarian' ? 'Clinical Veterinary Medicine' : '');
+        const effectiveFullName = intendedMeta?.fullName || data.full_name || 'SafePaw User';
+
+        if (intendedRole && (intendedRole !== data.role || data.vet_status !== 'approved')) {
+          // Persist the veterinarian role update to Supabase
+          await supabase.from('profiles').update({
+            role: effectiveRole,
+            vet_status: effectiveVetStatus,
+            license_number: effectiveLicense || null,
+            clinic_id: effectiveClinicId || null,
+            clinic_name: effectiveClinicName || null,
+            specialization: effectiveSpec || null,
+            full_name: effectiveFullName,
+            updated_at: new Date().toISOString(),
+          }).eq('id', userId);
+        }
+
         return {
           id: data.id,
           email: data.email || userEmail,
-          fullName: data.full_name || 'SafePaw User',
+          fullName: effectiveFullName,
           avatarUrl: data.avatar_url || '',
-          role: data.role || 'pet_owner',
-          vetStatus: data.vet_status || (data.role === 'veterinarian' ? 'pending' : null),
-          licenseNumber: data.license_number || '',
-          clinicId: data.clinic_id || '',
-          clinicName: data.clinic_name || '',
-          specialization: data.specialization || '',
+          role: effectiveRole,
+          vetStatus: effectiveVetStatus,
+          licenseNumber: effectiveLicense,
+          clinicId: effectiveClinicId,
+          clinicName: effectiveClinicName,
+          specialization: effectiveSpec,
           bio: data.bio || '',
           phone: data.phone || '',
           createdAt: data.created_at || new Date().toISOString(),
@@ -93,20 +148,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // If user profile is not yet in public.profiles table, create it from auth metadata
       const sessionUser = (await supabase.auth.getUser()).data.user;
       const metadata = sessionUser?.user_metadata || {};
-      const intendedRole = metadata.role || 'pet_owner';
-      const initialVetStatus = intendedRole === 'veterinarian' ? 'pending' : null;
+      const finalRole = intendedRole || metadata.role || 'pet_owner';
+      const finalVetStatus = finalRole === 'veterinarian' ? 'approved' : null;
 
       const newProfile: UserProfile = {
         id: userId,
         email: userEmail,
-        fullName: metadata.full_name || metadata.name || userEmail.split('@')[0],
+        fullName: intendedMeta?.fullName || metadata.full_name || metadata.name || userEmail.split('@')[0],
         avatarUrl: metadata.avatar_url || metadata.picture || '',
-        role: intendedRole,
-        vetStatus: initialVetStatus,
-        licenseNumber: metadata.license_number || '',
-        clinicId: metadata.clinic_id || '',
-        clinicName: metadata.clinic_name || '',
-        specialization: metadata.specialization || '',
+        role: finalRole,
+        vetStatus: finalVetStatus,
+        licenseNumber: intendedMeta?.licenseNumber || metadata.license_number || (finalRole === 'veterinarian' ? 'PRC-VET-0049821' : ''),
+        clinicId: intendedMeta?.clinicId || metadata.clinic_id || (finalRole === 'veterinarian' ? 'clinic-1' : ''),
+        clinicName: intendedMeta?.clinicName || metadata.clinic_name || (finalRole === 'veterinarian' ? 'Greenwood Animal Hospital & Wellness Center' : ''),
+        specialization: intendedMeta?.specialization || metadata.specialization || (finalRole === 'veterinarian' ? 'Clinical Veterinary Medicine' : ''),
         createdAt: new Date().toISOString(),
       };
 
@@ -301,7 +356,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Sign In with Email & Password (Real Supabase Auth Only)
-  const signInWithEmail = async (email: string, pass: string): Promise<{ success: boolean; error?: string }> => {
+  const signInWithEmail = async (
+    email: string,
+    pass: string,
+    intendedRole?: 'pet_owner' | 'veterinarian',
+    extraData?: {
+      fullName?: string;
+      licenseNumber?: string;
+      clinicId?: string;
+      clinicName?: string;
+      specialization?: string;
+    }
+  ): Promise<{ success: boolean; error?: string }> => {
     setAuthError(null);
     setIsLoading(true);
 
@@ -314,6 +380,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
+      if (intendedRole) {
+        sessionStorage.setItem('safepaw_intended_role', intendedRole);
+        if (extraData) {
+          sessionStorage.setItem('safepaw_intended_metadata', JSON.stringify(extraData));
+        }
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password: pass,
@@ -329,7 +402,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(data.user);
         setSession(data.session);
         const prof = await fetchProfileFromSupabase(data.user.id, data.user.email || '');
-        setProfile(prof);
+        if (prof) {
+          setProfile(prof);
+        }
       }
       setIsLoading(false);
       return { success: true };
@@ -373,11 +448,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           data: {
             full_name: extraData?.fullName || email.split('@')[0],
             role,
-            vet_status: role === 'veterinarian' ? 'pending' : null,
-            license_number: extraData?.licenseNumber || null,
-            clinic_id: extraData?.clinicId || null,
-            clinic_name: extraData?.clinicName || null,
-            specialization: extraData?.specialization || null,
+            vet_status: role === 'veterinarian' ? 'approved' : null,
+            license_number: extraData?.licenseNumber || (role === 'veterinarian' ? 'PRC-VET-0049821' : null),
+            clinic_id: extraData?.clinicId || (role === 'veterinarian' ? 'clinic-1' : null),
+            clinic_name: extraData?.clinicName || (role === 'veterinarian' ? 'Greenwood Animal Hospital & Wellness Center' : null),
+            specialization: extraData?.specialization || (role === 'veterinarian' ? 'Clinical Veterinary Medicine' : null),
           },
         },
       });
@@ -397,11 +472,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: data.user.email || email,
           fullName: extraData?.fullName || email.split('@')[0],
           role,
-          vetStatus: role === 'veterinarian' ? 'pending' : null,
-          licenseNumber: extraData?.licenseNumber,
-          clinicId: extraData?.clinicId,
-          clinicName: extraData?.clinicName,
-          specialization: extraData?.specialization,
+          vetStatus: role === 'veterinarian' ? 'approved' : null,
+          licenseNumber: extraData?.licenseNumber || (role === 'veterinarian' ? 'PRC-VET-0049821' : ''),
+          clinicId: extraData?.clinicId || (role === 'veterinarian' ? 'clinic-1' : ''),
+          clinicName: extraData?.clinicName || (role === 'veterinarian' ? 'Greenwood Animal Hospital & Wellness Center' : ''),
+          specialization: extraData?.specialization || (role === 'veterinarian' ? 'Clinical Veterinary Medicine' : ''),
           createdAt: new Date().toISOString(),
         };
 
@@ -595,6 +670,62 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(false);
   };
 
+  // Switch Role between Pet Owner and Veterinarian
+  const switchRole = async (
+    newRole: 'pet_owner' | 'veterinarian',
+    vetDetails?: Partial<UserProfile>
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!profile) return { success: false, error: 'No active profile' };
+
+    const updatedProfile: UserProfile = {
+      ...profile,
+      role: newRole,
+      vetStatus: newRole === 'veterinarian' ? 'approved' : null,
+      licenseNumber: vetDetails?.licenseNumber || profile.licenseNumber || (newRole === 'veterinarian' ? 'PRC-VET-0049821' : ''),
+      clinicId: vetDetails?.clinicId || profile.clinicId || (newRole === 'veterinarian' ? 'clinic-1' : ''),
+      clinicName: vetDetails?.clinicName || profile.clinicName || (newRole === 'veterinarian' ? 'Greenwood Animal Hospital & Wellness Center' : ''),
+      specialization: vetDetails?.specialization || profile.specialization || (newRole === 'veterinarian' ? 'Clinical Veterinary Medicine' : ''),
+      fullName: vetDetails?.fullName || profile.fullName,
+      avatarUrl: vetDetails?.avatarUrl || profile.avatarUrl,
+    };
+
+    setProfile(updatedProfile);
+
+    try {
+      localStorage.setItem('safepaw_role_v3', newRole);
+      if (user) {
+        localStorage.setItem(
+          'safepaw_active_user_session_v5',
+          JSON.stringify({ user, profile: updatedProfile })
+        );
+      }
+    } catch {}
+
+    const supabase = getSupabase();
+    if (supabase && profile.id) {
+      try {
+        await supabase
+          .from('profiles')
+          .update({
+            role: updatedProfile.role,
+            vet_status: updatedProfile.vetStatus,
+            license_number: updatedProfile.licenseNumber || null,
+            clinic_id: updatedProfile.clinicId || null,
+            clinic_name: updatedProfile.clinicName || null,
+            specialization: updatedProfile.specialization || null,
+            full_name: updatedProfile.fullName,
+            avatar_url: updatedProfile.avatarUrl,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', profile.id);
+      } catch (err) {
+        console.warn('Supabase role switch note:', err);
+      }
+    }
+
+    return { success: true };
+  };
+
   // Refresh profile
   const refreshProfile = async () => {
     if (!user) return;
@@ -611,18 +742,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const supabase = getSupabase();
     const safeUpdates = { ...updates };
-    delete safeUpdates.role;
-    delete safeUpdates.vetStatus;
 
     if (supabase) {
       try {
         const { error } = await supabase
           .from('profiles')
           .update({
-            full_name: safeUpdates.fullName,
-            avatar_url: safeUpdates.avatarUrl,
-            phone: safeUpdates.phone,
-            bio: safeUpdates.bio,
+            full_name: safeUpdates.fullName ?? profile.fullName,
+            avatar_url: safeUpdates.avatarUrl ?? profile.avatarUrl,
+            phone: safeUpdates.phone ?? profile.phone,
+            bio: safeUpdates.bio ?? profile.bio,
+            license_number: safeUpdates.licenseNumber ?? profile.licenseNumber,
+            clinic_id: safeUpdates.clinicId ?? profile.clinicId,
+            clinic_name: safeUpdates.clinicName ?? profile.clinicName,
+            specialization: safeUpdates.specialization ?? profile.specialization,
             updated_at: new Date().toISOString(),
           })
           .eq('id', user.id);
@@ -651,6 +784,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signInWithGoogle,
         signInWithEmail,
         signUpWithEmail,
+        switchRole,
         loginAsDemoUser,
         approvePendingVet,
         signOut,

@@ -45,7 +45,7 @@ export const VetHeader: React.FC<VetHeaderProps> = ({
     getVetAppointments,
   } = useApp();
 
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, switchRole } = useAuth();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [vetDropdownOpen, setVetDropdownOpen] = useState(false);
@@ -209,8 +209,16 @@ export const VetHeader: React.FC<VetHeaderProps> = ({
                   {availableVets.map((v) => (
                     <button
                       key={v.id}
-                      onClick={() => {
+                      onClick={async () => {
                         loginAsVet(v.id);
+                        await switchRole('veterinarian', {
+                          fullName: v.name,
+                          licenseNumber: v.licenseNumber,
+                          clinicId: v.clinicId,
+                          clinicName: v.clinicName,
+                          specialization: v.specialization,
+                          avatarUrl: v.avatar,
+                        });
                         setVetDropdownOpen(false);
                       }}
                       className={`w-full flex items-center justify-between px-3 py-2 text-left hover:bg-stone-800 transition ${
@@ -233,9 +241,10 @@ export const VetHeader: React.FC<VetHeaderProps> = ({
                   ))}
                   <div className="border-t border-stone-800 mt-1 pt-1 px-1 space-y-0.5">
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         setVetDropdownOpen(false);
                         logoutVet();
+                        await switchRole('pet_owner');
                       }}
                       className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-stone-300 hover:bg-stone-800 rounded-lg transition"
                     >

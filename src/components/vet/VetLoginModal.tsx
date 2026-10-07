@@ -31,7 +31,7 @@ export const VetLoginModal: React.FC<VetLoginModalProps> = ({ isOpen, onClose })
     clinics,
   } = useApp();
 
-  const { signInWithGoogle } = useAuth();
+  const { signInWithGoogle, switchRole } = useAuth();
 
   const [activeTab, setActiveTab] = useState<AuthTab>('google');
   const [errorMsg, setErrorMsg] = useState('');
@@ -311,8 +311,16 @@ export const VetLoginModal: React.FC<VetLoginModalProps> = ({ isOpen, onClose })
                 {availableVets.map((v) => (
                   <button
                     key={v.id}
-                    onClick={() => {
+                    onClick={async () => {
                       loginAsVet(v.id);
+                      await switchRole('veterinarian', {
+                        fullName: v.name,
+                        licenseNumber: v.licenseNumber,
+                        clinicId: v.clinicId,
+                        clinicName: v.clinicName,
+                        specialization: v.specialization,
+                        avatarUrl: v.avatar,
+                      });
                       onClose();
                     }}
                     className="w-full p-3.5 rounded-xl bg-stone-950 border border-stone-800 hover:border-teal-500 hover:bg-stone-800/90 transition flex items-center justify-between group text-left cursor-pointer"

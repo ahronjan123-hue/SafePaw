@@ -102,17 +102,23 @@ export const AuthPage: React.FC = () => {
 
       if (isSigningUp) {
         const res = await signUpWithEmail(email, password, portalMode, {
-          fullName: fullName.trim() || (portalMode === 'veterinarian' ? 'Dr. Practicing Veterinarian' : 'Pet Parent'),
-          licenseNumber: portalMode === 'veterinarian' ? vetLicense.trim() : undefined,
+          fullName: fullName.trim() || (portalMode === 'veterinarian' ? 'Dr. Practicing Veterinarian, DVM' : 'Pet Parent'),
+          licenseNumber: portalMode === 'veterinarian' ? (vetLicense.trim() || 'PRC-VET-0038912') : undefined,
           clinicId: portalMode === 'veterinarian' ? clinic.id : undefined,
           clinicName: portalMode === 'veterinarian' ? clinic.name : undefined,
-          specialization: portalMode === 'veterinarian' ? vetSpecialization.trim() : undefined,
+          specialization: portalMode === 'veterinarian' ? (vetSpecialization.trim() || 'Clinical Veterinary Medicine') : undefined,
         });
         if (!res.success && res.error) {
           setAuthError(res.error);
         }
       } else {
-        const res = await signInWithEmail(email, password);
+        const res = await signInWithEmail(email, password, portalMode, {
+          fullName: fullName.trim() || (portalMode === 'veterinarian' ? 'Dr. Practicing Veterinarian, DVM' : 'Pet Parent'),
+          licenseNumber: portalMode === 'veterinarian' ? (vetLicense.trim() || 'PRC-VET-0038912') : undefined,
+          clinicId: portalMode === 'veterinarian' ? clinic.id : undefined,
+          clinicName: portalMode === 'veterinarian' ? clinic.name : undefined,
+          specialization: portalMode === 'veterinarian' ? (vetSpecialization.trim() || 'Clinical Veterinary Medicine') : undefined,
+        });
         if (!res.success && res.error) {
           setAuthError(res.error);
         }
