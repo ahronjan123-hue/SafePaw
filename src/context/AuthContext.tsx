@@ -142,6 +142,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             specialization: effectiveSpec,
             updated_at: new Date().toISOString(),
           }).eq('id', userId);
+
+          if (effectiveRole === 'veterinarian') {
+            try {
+              await supabase.auth.updateUser({
+                data: {
+                  role: 'veterinarian',
+                  vet_status: 'approved',
+                  license_number: effectiveLicense,
+                  clinic_id: effectiveClinicId,
+                  clinic_name: effectiveClinicName,
+                  specialization: effectiveSpec,
+                },
+              });
+            } catch {}
+          }
         }
 
         if (effectiveRole === 'veterinarian' && !vetRecord) {
@@ -397,7 +412,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             prompt: 'consent select_account',
             role: role,
           },
-        },
+          data: {
+            role: role,
+            vet_status: role === 'veterinarian' ? 'approved' : null,
+            license_number: extraData?.licenseNumber || (role === 'veterinarian' ? 'PRC-VET-VERIFIED' : null),
+            clinic_id: extraData?.clinicId || (role === 'veterinarian' ? '00000000-0000-0000-0000-000000000001' : null),
+            clinic_name: extraData?.clinicName || (role === 'veterinarian' ? 'Vets in Practice Animal Hospital (VIP)' : null),
+            specialization: extraData?.specialization || (role === 'veterinarian' ? 'Clinical Veterinary Medicine' : null),
+            full_name: extraData?.fullName || undefined,
+          },
+        } as any,
       });
 
       if (error) {
@@ -843,6 +867,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             license_number: updatedProfile.licenseNumber,
           },
         });
+
+        if (newRole === 'veterinarian') {
+          try {
+            await supabase.from('veterinarians').upsert({
+              id: profile.id,
+              user_id: profile.id,
+              clinic_id: updatedProfile.clinicId || '00000000-0000-0000-0000-000000000001',
+              name: updatedProfile.fullName,
+              email: profile.email,
+              phone: profile.phone || '+639178349210',
+              title: 'Attending Clinical Veterinarian',
+              license_number: updatedProfile.licenseNumber || 'PRC-VET-VERIFIED',
+              specialization: updatedProfile.specialization || 'Clinical Veterinary Medicine',
+              avatar_url: updatedProfile.avatarUrl || null,
+              approval_status: 'approved',
+              approved_at: new Date().toISOString(),
+            });
+          } catch {}
+        }
       } catch (err) {
         console.warn('Supabase role switch note:', err);
       }

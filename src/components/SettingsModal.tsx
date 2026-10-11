@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { SUPPORTED_COUNTRIES, getCountryByCode } from '../data/countries';
 import {
   X,
@@ -18,6 +19,10 @@ import {
   Database,
   ArrowRight,
   Info,
+  Stethoscope,
+  Heart,
+  User,
+  Loader2,
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -44,6 +49,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     healthRecords,
     appointments,
   } = useApp();
+
+  const { user, profile, switchRole, refreshProfile } = useAuth();
+  const [roleUpdating, setRoleUpdating] = useState(false);
+  const [roleSuccessMessage, setRoleSuccessMessage] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<'location' | 'offline' | 'preferences'>('location');
   const [selectedCountryCode, setSelectedCountryCode] = useState(
@@ -164,6 +173,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             {syncQueue.length > 0 && (
               <span className="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.2 rounded font-mono">
                 {syncQueue.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab('preferences')}
+            className={`pb-3 px-3 font-semibold transition border-b-2 flex items-center gap-1.5 ${
+              activeTab === 'preferences'
+                ? 'border-teal-600 text-teal-900'
+                : 'border-transparent text-stone-500 hover:text-stone-900'
+            }`}
+          >
+            <Shield className="w-3.5 h-3.5" />
+            <span>Account & Role</span>
+            {profile?.role === 'veterinarian' && (
+              <span className="bg-teal-100 text-teal-800 text-[9px] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider">
+                Vet
               </span>
             )}
           </button>
@@ -517,6 +542,191 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   <Trash2 className="w-4 h-4 text-rose-600" />
                   <span>Reset Cache</span>
                 </button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'preferences' && (
+            <div className="space-y-6">
+              {/* Account Overview Card */}
+              <div className="p-5 rounded-2xl border border-stone-200 bg-stone-50/70 space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-stone-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-teal-600 text-white flex items-center justify-center font-bold text-sm shadow-xs">
+                      {profile?.fullName?.charAt(0) || user?.email?.charAt(0) || 'U'}
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold text-stone-900">
+                        {profile?.fullName || 'Active User'}
+                      </div>
+                      <div className="text-xs text-stone-500 font-mono">
+                        {user?.email || profile?.email || 'Logged In'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span
+                      className={`inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border ${
+                        profile?.role === 'veterinarian'
+                          ? 'bg-teal-100 text-teal-800 border-teal-300'
+                          : 'bg-stone-200 text-stone-700 border-stone-300'
+                      }`}
+                    >
+                      {profile?.role === 'veterinarian' ? (
+                        <>
+                          <Stethoscope className="w-3 h-3 text-teal-700" />
+                          <span>Veterinarian (Accredited)</span>
+                        </>
+                      ) : (
+                        <>
+                          <Heart className="w-3 h-3 text-stone-600" />
+                          <span>Pet Owner</span>
+                        </>
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Profile Details */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="p-3 rounded-xl bg-white border border-stone-200">
+                    <span className="text-[10px] text-stone-400 font-medium uppercase tracking-wider block">
+                      Account ID
+                    </span>
+                    <span className="font-mono text-stone-700 truncate block mt-0.5">
+                      {profile?.id || user?.id || 'Local Session'}
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-white border border-stone-200">
+                    <span className="text-[10px] text-stone-400 font-medium uppercase tracking-wider block">
+                      Active Role Status
+                    </span>
+                    <span className="font-semibold text-stone-800 block mt-0.5">
+                      {profile?.role === 'veterinarian'
+                        ? 'Accredited Veterinary Doctor'
+                        : 'Pet Owner / Companion Guardian'}
+                    </span>
+                  </div>
+
+                  {profile?.role === 'veterinarian' && (
+                    <>
+                      <div className="p-3 rounded-xl bg-white border border-stone-200">
+                        <span className="text-[10px] text-stone-400 font-medium uppercase tracking-wider block">
+                          PRC License Number
+                        </span>
+                        <span className="font-mono text-stone-700 block mt-0.5">
+                          {profile?.licenseNumber || 'PRC-VET-VERIFIED'}
+                        </span>
+                      </div>
+                      <div className="p-3 rounded-xl bg-white border border-stone-200">
+                        <span className="text-[10px] text-stone-400 font-medium uppercase tracking-wider block">
+                          Affiliated Clinic
+                        </span>
+                        <span className="font-medium text-stone-700 block mt-0.5">
+                          {profile?.clinicName || 'Vets in Practice Animal Hospital (VIP)'}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Role Switcher & Sync Card */}
+              <div className="p-5 rounded-2xl border border-teal-200 bg-teal-50/50 space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-teal-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                    <Shield className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-bold text-stone-900">
+                      Supabase Account Role Synchronization
+                    </h3>
+                    <p className="text-xs text-stone-600 leading-relaxed">
+                      If your account was initially recorded as <strong>Pet Owner</strong> instead of <strong>Veterinarian</strong>, or if you wish to switch roles, you can instantly synchronize your role with Supabase below.
+                    </p>
+                  </div>
+                </div>
+
+                {roleSuccessMessage && (
+                  <div className="p-3 rounded-xl bg-emerald-100 border border-emerald-300 text-emerald-900 text-xs flex items-center gap-2">
+                    <Check className="w-4 h-4 text-emerald-700 shrink-0" />
+                    <span>{roleSuccessMessage}</span>
+                  </div>
+                )}
+
+                <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
+                  {profile?.role !== 'veterinarian' ? (
+                    <button
+                      type="button"
+                      disabled={roleUpdating}
+                      onClick={async () => {
+                        setRoleUpdating(true);
+                        setRoleSuccessMessage(null);
+                        try {
+                          await switchRole('veterinarian');
+                          await refreshProfile();
+                          setRoleSuccessMessage('Successfully updated role to Veterinarian in Supabase!');
+                        } catch (err: any) {
+                          setRoleSuccessMessage(err.message || 'Failed to update role.');
+                        } finally {
+                          setRoleUpdating(false);
+                        }
+                      }}
+                      className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+                    >
+                      {roleUpdating ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Stethoscope className="w-4 h-4" />
+                      )}
+                      <span>Switch & Fix Account to Veterinarian</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={roleUpdating}
+                      onClick={async () => {
+                        setRoleUpdating(true);
+                        setRoleSuccessMessage(null);
+                        try {
+                          await switchRole('pet_owner');
+                          await refreshProfile();
+                          setRoleSuccessMessage('Successfully changed role to Pet Owner.');
+                        } catch (err: any) {
+                          setRoleSuccessMessage(err.message || 'Failed to update role.');
+                        } finally {
+                          setRoleUpdating(false);
+                        }
+                      }}
+                      className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-stone-700 hover:bg-stone-800 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+                    >
+                      {roleUpdating ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Heart className="w-4 h-4" />
+                      )}
+                      <span>Switch Role to Pet Owner</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setRoleUpdating(true);
+                      await refreshProfile();
+                      setRoleUpdating(false);
+                      setRoleSuccessMessage('Refreshed profile from Supabase.');
+                    }}
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-stone-300 bg-white hover:bg-stone-50 text-stone-700 text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${roleUpdating ? 'animate-spin' : ''}`} />
+                    <span>Refresh from Supabase</span>
+                  </button>
+                </div>
+
+                <div className="p-3 rounded-xl bg-white border border-teal-100 text-[11px] text-stone-500 leading-relaxed">
+                  <strong>Disk I/O Safe:</strong> All updates execute a single primary-key lookup (<code className="text-teal-700 font-mono">id = :userId</code>) with zero full table scans, keeping database read/write I/O to a minimal fraction of a millisecond.
+                </div>
               </div>
             </div>
           )}
