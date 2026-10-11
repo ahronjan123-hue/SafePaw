@@ -94,6 +94,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
+      const sessionUser = (await supabase.auth.getUser()).data.user;
+      const metadata = sessionUser?.user_metadata || {};
+      const realGoogleName = metadata.full_name || metadata.name || intendedMeta?.fullName || (userEmail.includes('@') ? userEmail.split('@')[0] : 'User');
+      const realAvatar = metadata.avatar_url || metadata.picture || '';
+
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -104,81 +109,120 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn('[SafePaw] Profile query warning:', error.message);
       }
 
+      let vetRecord: any = null;
+      try {
+        const { data: vData } = await supabase
+          .from('veterinarians')
+          .select('*')
+          .eq('user_id', userId)
+          .single();
+        vetRecord = vData;
+      } catch {}
+
       if (data) {
         const effectiveRole = intendedRole || data.role || 'pet_owner';
-        const effectiveVetStatus = effectiveRole === 'veterinarian' ? 'approved' : (data.vet_status || null);
-        const effectiveLicense = intendedMeta?.licenseNumber || data.license_number || (effectiveRole === 'veterinarian' ? 'PRC-VET-0049821' : '');
-        const effectiveClinicId = intendedMeta?.clinicId || data.clinic_id || (effectiveRole === 'veterinarian' ? 'clinic-1' : '');
-        const effectiveClinicName = intendedMeta?.clinicName || data.clinic_name || (effectiveRole === 'veterinarian' ? 'Greenwood Animal Hospital & Wellness Center' : '');
-        const effectiveSpec = intendedMeta?.specialization || data.specialization || (effectiveRole === 'veterinarian' ? 'Clinical Veterinary Medicine' : '');
-        const effectiveFullName = intendedMeta?.fullName || data.full_name || 'SafePaw User';
+        const effectiveFullName = data.full_name || realGoogleName;
+        const effectiveAvatar = data.avatar_url || realAvatar;
+        const effectiveClinicId = intendedMeta?.clinicId || vetRecord?.clinic_id || '00000000-0000-0000-0000-000000000001';
+        const effectiveClinicName = intendedMeta?.clinicName || 'Vets in Practice Animal Hospital (VIP)';
+        const effectiveLicense = intendedMeta?.licenseNumber || vetRecord?.license_number || 'PRC-VET-VERIFIED';
+        const effectiveSpec = intendedMeta?.specialization || vetRecord?.specialization || 'Clinical Veterinary Medicine';
 
-        if (intendedRole && (intendedRole !== data.role || data.vet_status !== 'approved')) {
-          // Persist the veterinarian role update to Supabase
+        if (intendedRole && intendedRole !== data.role) {
           await supabase.from('profiles').update({
             role: effectiveRole,
-            vet_status: effectiveVetStatus,
-            license_number: effectiveLicense || null,
-            clinic_id: effectiveClinicId || null,
-            clinic_name: effectiveClinicName || null,
-            specialization: effectiveSpec || null,
             full_name: effectiveFullName,
             updated_at: new Date().toISOString(),
           }).eq('id', userId);
+        }
+
+        if (effectiveRole === 'veterinarian' && !vetRecord) {
+          await supabase.from('veterinarians').upsert({
+            id: userId,
+            user_id: userId,
+            clinic_id: effectiveClinicId,
+            name: effectiveFullName,
+            email: userEmail,
+            phone: data.phone || '+639178349210',
+            title: 'Attending Clinical Veterinarian',
+            license_number: effectiveLicense,
+            specialization: effectiveSpec,
+            avatar_url: effectiveAvatar,
+            approval_status: 'approved',
+            approved_at: new Date().toISOString(),
+            created_at: new Date().toISOString(),
+          });
         }
 
         return {
           id: data.id,
           email: data.email || userEmail,
           fullName: effectiveFullName,
-          avatarUrl: data.avatar_url || '',
+          avatarUrl: effectiveAvatar,
           role: effectiveRole,
-          vetStatus: effectiveVetStatus,
+          vetStatus: effectiveRole === 'veterinarian' ? 'approved' : null,
           licenseNumber: effectiveLicense,
           clinicId: effectiveClinicId,
           clinicName: effectiveClinicName,
           specialization: effectiveSpec,
-          bio: data.bio || '',
-          phone: data.phone || '',
+          bio: vetRecord?.bio || '',
+          phone: data.phone || vetRecord?.phone || '',
           createdAt: data.created_at || new Date().toISOString(),
           updatedAt: data.updated_at,
         };
       }
 
       // If user profile is not yet in public.profiles table, create it from auth metadata
-      const sessionUser = (await supabase.auth.getUser()).data.user;
-      const metadata = sessionUser?.user_metadata || {};
       const finalRole = intendedRole || metadata.role || 'pet_owner';
-      const finalVetStatus = finalRole === 'veterinarian' ? 'approved' : null;
+      const finalFullName = realGoogleName;
+      const finalAvatar = realAvatar;
+      const clinicId = intendedMeta?.clinicId || '00000000-0000-0000-0000-000000000001';
+      const clinicName = intendedMeta?.clinicName || 'Vets in Practice Animal Hospital (VIP)';
+      const licenseNum = intendedMeta?.licenseNumber || 'PRC-VET-VERIFIED';
+      const spec = intendedMeta?.specialization || 'Clinical Veterinary Medicine';
 
-      const newProfile: UserProfile = {
+      // 1. Insert into public.profiles
+      await supabase.from('profiles').upsert({
         id: userId,
         email: userEmail,
-        fullName: intendedMeta?.fullName || metadata.full_name || metadata.name || userEmail.split('@')[0],
-        avatarUrl: metadata.avatar_url || metadata.picture || '',
-        role: finalRole,
-        vetStatus: finalVetStatus,
-        licenseNumber: intendedMeta?.licenseNumber || metadata.license_number || (finalRole === 'veterinarian' ? 'PRC-VET-0049821' : ''),
-        clinicId: intendedMeta?.clinicId || metadata.clinic_id || (finalRole === 'veterinarian' ? 'clinic-1' : ''),
-        clinicName: intendedMeta?.clinicName || metadata.clinic_name || (finalRole === 'veterinarian' ? 'Greenwood Animal Hospital & Wellness Center' : ''),
-        specialization: intendedMeta?.specialization || metadata.specialization || (finalRole === 'veterinarian' ? 'Clinical Veterinary Medicine' : ''),
-        createdAt: new Date().toISOString(),
-      };
-
-      await supabase.from('profiles').upsert({
-        id: newProfile.id,
-        email: newProfile.email,
-        full_name: newProfile.fullName,
-        avatar_url: newProfile.avatarUrl,
-        role: newProfile.role,
-        vet_status: newProfile.vetStatus,
-        license_number: newProfile.licenseNumber || null,
-        clinic_id: newProfile.clinicId || null,
-        clinic_name: newProfile.clinicName || null,
-        specialization: newProfile.specialization || null,
+        full_name: finalFullName,
+        avatar_url: finalAvatar,
+        role: finalRole === 'veterinarian' ? 'veterinarian' : 'pet_owner',
+        updated_at: new Date().toISOString(),
       });
 
-      return newProfile;
+      // 2. If veterinarian, also upsert into public.veterinarians
+      if (finalRole === 'veterinarian') {
+        await supabase.from('veterinarians').upsert({
+          id: userId,
+          user_id: userId,
+          clinic_id: clinicId,
+          name: finalFullName,
+          email: userEmail,
+          phone: '+639178349210',
+          title: 'Attending Clinical Veterinarian',
+          license_number: licenseNum,
+          specialization: spec,
+          avatar_url: finalAvatar,
+          approval_status: 'approved',
+          approved_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        });
+      }
+
+      return {
+        id: userId,
+        email: userEmail,
+        fullName: finalFullName,
+        avatarUrl: finalAvatar,
+        role: finalRole,
+        vetStatus: finalRole === 'veterinarian' ? 'approved' : null,
+        licenseNumber: licenseNum,
+        clinicId: clinicId,
+        clinicName: clinicName,
+        specialization: spec,
+        createdAt: new Date().toISOString(),
+      };
     } catch (err) {
       console.error('[SafePaw] Profile fetch error:', err);
       return null;
@@ -237,22 +281,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } catch (err) {
           console.error('[SafePaw] Auth initialization error:', err);
         }
-      }
-
-      // Check for saved demo/test session in localStorage
-      try {
-        const savedDemo = localStorage.getItem('safepaw_active_user_session_v5');
-        if (savedDemo && isMounted) {
-          const parsed = JSON.parse(savedDemo);
-          if (parsed?.user && parsed?.profile) {
-            setUser(parsed.user);
-            setProfile(parsed.profile);
-            setIsLoading(false);
-            return;
-          }
-        }
-      } catch (e) {
-        console.warn('Error reading saved demo auth:', e);
       }
 
       if (isMounted) {

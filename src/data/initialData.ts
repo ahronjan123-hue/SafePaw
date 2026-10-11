@@ -10,63 +10,14 @@ import {
   VetUserSession,
 } from '../types';
 
-export const INITIAL_VETS: VetUserSession[] = [
-  {
-    id: 'vet-1',
-    name: 'Dr. Elena Ramos, DVM',
-    email: 'elena.ramos@vetsinpractice.ph',
-    title: 'Medical Director',
-    licenseNumber: 'PRC-VET-0038912',
-    clinicId: 'clinic-1',
-    clinicName: 'Vets in Practice Animal Hospital (VIP)',
-    specialization: 'Canine & Feline Internal Medicine',
-    avatar: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=300&q=80',
-    consultationFeeUSD: 14,
-    availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-    availableTimeSlots: ['08:30 AM', '09:15 AM', '10:00 AM', '10:45 AM', '11:30 AM', '01:30 PM', '02:15 PM', '03:00 PM', '03:45 PM'],
-    bio: '14+ years of clinical excellence specializing in chronic disease management, preventive immunology, and feline medicine.',
-    phone: '(02) 8531-1581 ext. 101',
-  },
-  {
-    id: 'vet-2',
-    name: 'Dr. Marcus Vance, DVM',
-    email: 'marcus.vance@animalhouse.ph',
-    title: 'Senior Emergency Surgeon',
-    licenseNumber: 'PRC-VET-0041289',
-    clinicId: 'clinic-2',
-    clinicName: 'Animal House Veterinary Hospital (24/7 Makati)',
-    specialization: 'Critical Care & Orthopedic Surgery',
-    avatar: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=300&q=80',
-    consultationFeeUSD: 16,
-    availableDays: ['Mon', 'Wed', 'Thu', 'Fri', 'Sat'],
-    availableTimeSlots: ['09:00 AM', '10:00 AM', '11:00 AM', '02:00 PM', '03:00 PM', '04:00 PM', '05:00 PM'],
-    bio: 'Board-certified emergency surgeon with extensive background in trauma stabilization, gastric decompression, and soft-tissue surgery.',
-    phone: '(02) 8896-3206 ext. 102',
-  },
-  {
-    id: 'vet-3',
-    name: 'Dr. Sarah Alcantara, DVM',
-    email: 'sarah.alcantara@up.edu.ph',
-    title: 'Clinical Professor & Specialist',
-    licenseNumber: 'PRC-VET-0059281',
-    clinicId: 'clinic-3',
-    clinicName: 'UP Veterinary Teaching Hospital (UP Diliman)',
-    specialization: 'Veterinary Oncology & Diagnostic Imaging',
-    avatar: 'https://images.unsplash.com/photo-1594824813583-57755f1f9a23?auto=format&fit=crop&w=300&q=80',
-    consultationFeeUSD: 12,
-    availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-    availableTimeSlots: ['08:00 AM', '10:00 AM', '12:00 PM', '02:00 PM', '04:00 PM'],
-    bio: 'University teaching hospital clinician dedicated to academic referral medicine, ultrasound diagnostics, and preventative care.',
-    phone: '(02) 8981-8500 loc. 3822',
-  },
-];
+export const INITIAL_VETS: VetUserSession[] = [];
 
 // Fresh empty data for production/live real users
 export const INITIAL_PETS: Pet[] = [];
 
 export const INITIAL_CLINICS: Clinic[] = [
   {
-    id: 'clinic-1',
+    id: '00000000-0000-0000-0000-000000000001',
     name: 'Vets in Practice Animal Hospital (VIP)',
     type: 'hospital_247',
     countryCode: 'PH',
@@ -89,12 +40,10 @@ export const INITIAL_CLINICS: Clinic[] = [
       { id: 'srv-4', name: 'Ultrasonic Dental Scaling & Polish', category: 'Dental', basePriceUSD: 45, durationMinutes: 60, description: 'Full dental hygiene treatment under safe monitored sedation.' },
       { id: 'srv-5', name: '24/7 Emergency Triage & Resuscitation', category: 'Emergency', basePriceUSD: 30, durationMinutes: 45, description: 'Immediate clinical assessment, emergency stabilization, and rapid blood chemistry panel.' },
     ],
-    veterinarians: [
-      { id: 'vet-1', name: 'Dr. Elena Ramos, DVM', title: 'Medical Director', specialization: 'Canine & Feline Internal Medicine', avatar: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=300&q=80', yearsExperience: 14 },
-    ],
+    veterinarians: [],
   },
   {
-    id: 'clinic-2',
+    id: '00000000-0000-0000-0000-000000000002',
     name: 'Animal House Veterinary Hospital (24/7 Makati)',
     type: 'hospital_247',
     countryCode: 'PH',
@@ -115,12 +64,10 @@ export const INITIAL_CLINICS: Clinic[] = [
       { id: 'srv-7', name: 'Critical Care Blood Panel & Imaging', category: 'Emergency', basePriceUSD: 42, durationMinutes: 40, description: 'Complete emergency hematology, biochemistry, and digital X-rays.' },
       { id: 'srv-8', name: 'Emergency Soft Tissue Surgery', category: 'Surgery', basePriceUSD: 85, durationMinutes: 90, description: 'Urgent surgery for gastric torsion, foreign body removal, or trauma.' },
     ],
-    veterinarians: [
-      { id: 'vet-2', name: 'Dr. Marcus Vance, DVM', title: 'Senior Emergency Surgeon', specialization: 'Critical Care & Orthopedic Surgery', avatar: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=300&q=80', yearsExperience: 10 },
-    ],
+    veterinarians: [],
   },
   {
-    id: 'clinic-3',
+    id: '00000000-0000-0000-0000-000000000003',
     name: 'UP Veterinary Teaching Hospital (UP Diliman)',
     type: 'clinic',
     countryCode: 'PH',
@@ -140,12 +87,10 @@ export const INITIAL_CLINICS: Clinic[] = [
       { id: 'srv-9', name: 'Academic Clinical Consultation', category: 'Wellness', basePriceUSD: 10, durationMinutes: 40, description: 'Comprehensive diagnostic workup by teaching faculty and resident clinical veterinarians.' },
       { id: 'srv-10', name: 'Diagnostic Ultrasound & Radiology', category: 'Wellness', basePriceUSD: 30, durationMinutes: 45, description: 'High-resolution abdominal ultrasound and digital musculoskeletal radiography.' },
     ],
-    veterinarians: [
-      { id: 'vet-3', name: 'Dr. Sarah Alcantara, DVM', title: 'Clinical Professor', specialization: 'Veterinary Oncology & Diagnostic Imaging', avatar: 'https://images.unsplash.com/photo-1594824813583-57755f1f9a23?auto=format&fit=crop&w=300&q=80', yearsExperience: 12 },
-    ],
+    veterinarians: [],
   },
   {
-    id: 'clinic-4',
+    id: '00000000-0000-0000-0000-000000000004',
     name: 'Biyaya Animal Care Hospital',
     type: 'hospital_247',
     countryCode: 'PH',

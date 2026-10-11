@@ -88,18 +88,19 @@ const MainLayout: React.FC = () => {
         if (!activeVet || activeVet.id !== matched.id || currentRole !== 'veterinarian') {
           loginAsVet(matched.id);
         }
-      } else if (!activeVet || activeVet.id !== profile.id || currentRole !== 'veterinarian') {
+      } else if (!activeVet || activeVet.id !== profile.id || currentRole !== 'veterinarian' || activeVet.name !== profile.fullName) {
+        const doctorName = profile.fullName || user?.user_metadata?.full_name || user?.user_metadata?.name || (profile.email ? `Dr. ${profile.email.split('@')[0]}` : 'Dr. Clinical Practitioner, DVM');
         loginCustomVet({
           id: profile.id,
-          name: profile.fullName || 'Dr. Attending Practitioner, DVM',
+          name: doctorName,
           email: profile.email,
           phone: profile.phone || '+639178349210',
           title: 'Attending Clinical Veterinarian',
           licenseNumber: profile.licenseNumber || 'PRC-VET-VERIFIED',
-          clinicId: profile.clinicId || 'clinic-1',
-          clinicName: profile.clinicName || 'Greenwood Animal Hospital & Wellness Center',
+          clinicId: profile.clinicId || '00000000-0000-0000-0000-000000000001',
+          clinicName: profile.clinicName || 'Vets in Practice Animal Hospital (VIP)',
           specialization: profile.specialization || 'Clinical Veterinary Medicine',
-          avatar: profile.avatarUrl || 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=300&q=80',
+          avatar: profile.avatarUrl || user?.user_metadata?.avatar_url || user?.user_metadata?.picture || 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=300&q=80',
           consultationFeeUSD: 14,
           availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
           availableTimeSlots: ['08:30 AM', '09:15 AM', '10:00 AM', '11:00 AM', '01:30 PM', '02:30 PM'],
@@ -113,7 +114,7 @@ const MainLayout: React.FC = () => {
         setCurrentRole('veterinarian');
       }
     }
-  }, [profile?.id, profile?.role, profile?.vetStatus]);
+  }, [profile?.id, profile?.role, profile?.fullName, profile?.vetStatus]);
 
   const handleOpenConsultationModal = (petId?: string, appointmentId?: string) => {
     setConsultationPrefill({ petId, appointmentId });
