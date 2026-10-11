@@ -9,6 +9,31 @@
     <meta property="og:description" content="SafePaw connects pet owners with verified veterinary clinics, featuring live appointment tracking, health records, multi-country currency localization, manual location override, and offline sync." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      (function () {
+        try {
+          var h = window.location.hash || '';
+          var s = window.location.search || '';
+          if (h.indexOf('access_token=') !== -1 || s.indexOf('code=') !== -1 || h.indexOf('error=') !== -1) {
+            localStorage.setItem('safepaw_oauth_hash_relay', window.location.href);
+            if (window.opener) {
+              window.opener.postMessage(
+                {
+                  type: 'SAFEPAW_OAUTH_CALLBACK',
+                  hash: h,
+                  search: s,
+                  href: window.location.href,
+                },
+                '*'
+              );
+              setTimeout(function () {
+                window.close();
+              }, 250);
+            }
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -398,6 +398,94 @@ export const AuthPage: React.FC = () => {
                 )}
               </button>
 
+              <div className="flex items-center gap-2 pt-0.5">
+                <button
+                  type="button"
+                  onClick={handleQuickEnter}
+                  className="flex-1 py-2.5 px-3 bg-stone-800 hover:bg-stone-700 border border-stone-700 text-teal-300 rounded-xl font-semibold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  <span>
+                    Quick Enter as {portalMode === 'veterinarian' ? 'Veterinarian' : 'Pet Owner'}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowRedirectHelper(!showRedirectHelper)}
+                  className="py-2.5 px-3 bg-stone-950 hover:bg-stone-800 border border-stone-800 text-stone-400 hover:text-stone-200 rounded-xl font-medium text-[11px] transition cursor-pointer"
+                >
+                  {showRedirectHelper ? 'Hide OAuth Help' : 'OAuth Redirect Help'}
+                </button>
+              </div>
+
+              {showRedirectHelper && (
+                <div className="p-4 rounded-2xl bg-stone-950 border border-teal-900/60 space-y-3 text-xs animate-fadeIn">
+                  <div className="font-bold text-teal-400 flex items-center justify-between">
+                    <span>Seeing "404 Page not found" or a stuck redirect window?</span>
+                  </div>
+                  <p className="text-[11px] text-stone-400 leading-relaxed">
+                    In AI Studio, the <code className="text-rose-300">ais-pre-...</code> URL returns 404 until the app is published, while <code className="text-teal-300">ais-dev-...</code> is your live running server. You can complete your login right now or update Supabase below:
+                  </p>
+
+                  {/* Option 1: Paste URL containing #access_token */}
+                  <form onSubmit={handleCompleteFromPastedUrl} className="space-y-1.5">
+                    <label className="block text-[11px] font-semibold text-stone-300">
+                      1. Instant Sign-In: Copy the URL from the popup's address bar (<code className="text-teal-400">.../#access_token=eyJ...</code>) and paste it here:
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={pastedCallbackUrl}
+                        onChange={(e) => setPastedCallbackUrl(e.target.value)}
+                        placeholder="Paste https://.../#access_token=eyJ... here"
+                        className="flex-1 bg-stone-900 border border-stone-700 rounded-xl px-3 py-1.5 text-stone-100 font-mono text-[11px] focus:outline-hidden focus:border-teal-500"
+                      />
+                      <button
+                        type="submit"
+                        className="px-3 py-1.5 bg-teal-500 hover:bg-teal-400 text-stone-950 font-bold rounded-xl text-[11px] transition cursor-pointer shrink-0"
+                      >
+                        Complete Login
+                      </button>
+                    </div>
+                  </form>
+
+                  {/* Option 2: Update Supabase URL Configuration */}
+                  <div className="space-y-1.5 pt-1 border-t border-stone-800/80">
+                    <div className="text-[11px] font-semibold text-stone-300">
+                      2. Set your Supabase Site URL to the <span className="text-teal-400">ais-dev</span> URL (Supabase → Authentication → URL Configuration):
+                    </div>
+                    <div className="space-y-1 text-[11px]">
+                      <div className="flex items-center justify-between gap-2 bg-stone-900 px-2.5 py-1.5 rounded-lg border border-stone-800">
+                        <div className="truncate">
+                          <span className="text-stone-400">Site URL (Live Dev): </span>
+                          <code className="text-teal-300 font-mono">{currentOrigin}</code>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyText(currentOrigin, 'site')}
+                          className="px-2 py-0.5 bg-stone-800 hover:bg-stone-700 text-stone-200 rounded text-[10px] font-semibold shrink-0 cursor-pointer"
+                        >
+                          {copiedUrl === 'site' ? 'Copied!' : 'Copy'}
+                        </button>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 bg-stone-900 px-2.5 py-1.5 rounded-lg border border-stone-800">
+                        <div className="truncate">
+                          <span className="text-stone-400">Redirect URLs: </span>
+                          <code className="text-teal-300 font-mono">https://*.run.app/**</code>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyText(`https://*.run.app/**`, 'wildcard')}
+                          className="px-2 py-0.5 bg-stone-800 hover:bg-stone-700 text-stone-200 rounded text-[10px] font-semibold shrink-0 cursor-pointer"
+                        >
+                          {copiedUrl === 'wildcard' ? 'Copied!' : 'Copy'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center gap-3">
                 <div className="flex-1 h-px bg-stone-800"></div>
                 <button

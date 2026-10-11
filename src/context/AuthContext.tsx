@@ -505,18 +505,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     initializeAuth();
 
-    // Listen for postMessage from OAuth popup window
+    // Listen for postMessage or localStorage relay from OAuth popup window
     const handleOAuthPopupMessage = async (event: MessageEvent) => {
       if (!isMounted) return;
       if (event.data?.type === 'SAFEPAW_OAUTH_CALLBACK') {
         const callbackPayload = event.data.href || event.data.hash || event.data.search || '';
         if (callbackPayload) {
+          try {
+            localStorage.removeItem('safepaw_oauth_hash_relay');
+          } catch {}
           await completeOAuthFromCallbackUrl(callbackPayload);
         }
       }
     };
+
+    const checkLocalStorageRelay = async () => {
+      if (!isMounted || typeof window === 'undefined') return;
+      try {
+        const relayedHref = localStorage.getItem('safepaw_oauth_hash_relay');
+        if (relayedHref) {
+          localStorage.removeItem('safepaw_oauth_hash_relay');
+          await completeOAuthFromCallbackUrl(relayedHref);
+        }
+      } catch {}
+    };
+
+    const handleStorageEvent = (event: StorageEvent) => {
+      if (event.key === 'safepaw_oauth_hash_relay' && event.newValue) {
+        checkLocalStorageRelay();
+      }
+    };
+
+    let relayInterval: ReturnType<typeof setInterval> | null = null;
     if (typeof window !== 'undefined') {
       window.addEventListener('message', handleOAuthPopupMessage);
+      window.addEventListener('storage', handleStorageEvent);
+      relayInterval = setInterval(checkLocalStorageRelay, 700);
     }
 
     // Listen to Supabase Auth state changes
@@ -548,6 +572,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isMounted = false;
       if (typeof window !== 'undefined') {
         window.removeEventListener('message', handleOAuthPopupMessage);
+        window.removeEventListener('storage', handleStorageEvent);
+      }
+      if (relayInterval) {
+        clearInterval(relayInterval);
       }
       if (authListenerSubscription) {
         authListenerSubscription.unsubscribe();
@@ -587,7 +615,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } catch {}
       }
 
-      const callbackUrl = `${window.location.origin}/auth/callback`;
+      const callbackUrl = window.location.origin;
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
