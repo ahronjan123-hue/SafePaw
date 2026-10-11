@@ -854,43 +854,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const supabase = getSupabase();
     if (supabase && isOnline) {
-      Promise.resolve(
-        supabase.auth.getUser().then(({ data: authData }) => {
-          const ownerId = authData.user?.id;
-          const speciesFormatted = (['Dog', 'Cat', 'Bird', 'Rabbit', 'Reptile'].find(
-            (s) => s.toLowerCase() === newPet.species?.toLowerCase()
-          ) || 'Other');
+      supabase.auth.getUser().then(({ data: authData }) => {
+        const ownerId = authData.user?.id;
+        const ownerEmail = authData.user?.email;
+        const ownerName = authData.user?.user_metadata?.full_name || authData.user?.user_metadata?.name || newPet.ownerName || 'Verified Pet Parent';
 
-          const petRow: any = {
-            id: newPet.id,
-            name: newPet.name,
-            species: speciesFormatted,
-            breed: newPet.breed || 'Mixed Breed',
-            age_years: Number(newPet.ageYears) || 1,
-            birth_date: newPet.birthDate || null,
-            weight_kg: Number(newPet.weightKg) || 5,
-            gender: newPet.gender || 'Male',
-            neutered: Boolean(newPet.neutered),
-            microchip_id: newPet.microchipId || null,
-            photo_url: newPet.photoUrl || null,
-            allergies: Array.isArray(newPet.allergies) ? newPet.allergies : [],
-            chronic_conditions: Array.isArray(newPet.chronicConditions) ? newPet.chronicConditions : [],
-            temperament: newPet.temperament || null,
-            dietary_notes: newPet.dietaryNotes || null,
-            owner_name: newPet.ownerName || 'Verified Pet Parent',
-            owner_phone: newPet.ownerPhone || '(02) 8812-9901',
-            owner_email: newPet.ownerEmail || null,
-            registered_date: newPet.registeredDate || new Date().toISOString().split('T')[0],
-            primary_clinic_id: newPet.primaryClinicId || null,
-          };
-          if (ownerId) petRow.owner_id = ownerId;
-          return supabase.from('pets').upsert(petRow);
-        })
-      )
-        .then(({ error }: any) => {
-          if (error) console.error('[SafePaw] Supabase pet insert error:', error.message);
-        })
-        .catch((err: unknown) => console.warn('[SafePaw] Supabase pet write note:', err));
+        const speciesFormatted = (['Dog', 'Cat', 'Bird', 'Rabbit', 'Reptile'].find(
+          (s) => s.toLowerCase() === newPet.species?.toLowerCase()
+        ) || 'Other');
+
+        const petRow: any = {
+          id: newPet.id,
+          name: newPet.name,
+          species: speciesFormatted,
+          breed: newPet.breed || 'Mixed Breed',
+          age_years: Number(newPet.ageYears) || 1,
+          birth_date: newPet.birthDate || null,
+          weight_kg: Number(newPet.weightKg) || 5,
+          gender: newPet.gender || 'Male',
+          neutered: Boolean(newPet.neutered),
+          microchip_id: newPet.microchipId || null,
+          photo_url: newPet.photoUrl || null,
+          allergies: Array.isArray(newPet.allergies) ? newPet.allergies : [],
+          chronic_conditions: Array.isArray(newPet.chronicConditions) ? newPet.chronicConditions : [],
+          temperament: newPet.temperament || null,
+          dietary_notes: newPet.dietaryNotes || null,
+          owner_name: ownerName,
+          owner_phone: newPet.ownerPhone || '(02) 8812-9901',
+          owner_email: ownerEmail || newPet.ownerEmail || null,
+          registered_date: newPet.registeredDate || new Date().toISOString().split('T')[0],
+          primary_clinic_id: newPet.primaryClinicId || null,
+        };
+        if (ownerId) petRow.owner_id = ownerId;
+
+        supabase.from('pets').upsert(petRow).then(({ error }: any) => {
+          if (error) {
+            console.error('[SafePaw] Supabase pet insert error:', error.message);
+          } else {
+            console.log('[SafePaw] Pet successfully persisted in Supabase!');
+          }
+        });
+      }).catch((err: unknown) => console.warn('[SafePaw] Supabase pet write note:', err));
     }
 
     if (!isOnline) {
@@ -1490,30 +1494,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const sessionUser = (await supabase.auth.getUser()).data.user;
         const currentConv = conversations.find((c) => c.id === conversationId);
+        const fallbackClinic = clinics[0];
+        const convClinicId = currentConv?.clinicId || fallbackClinic.id;
+        const matchedClinic = clinics.find((cl) => cl.id === convClinicId) || fallbackClinic;
 
         // 1. Guarantee parent conversation exists in Supabase before message insert
-        if (currentConv) {
-          const convRow: any = {
-            id: currentConv.id,
-            clinic_id: currentConv.clinicId,
-            clinic_name: currentConv.clinicName || 'Veterinary Hospital',
-            clinic_avatar: currentConv.clinicAvatar || null,
-            pet_id: currentConv.petId || 'pet-general',
-            pet_name: currentConv.petName || 'General Care Inquiry',
-            owner_id: sessionUser?.id || null,
-            last_message: text,
-            last_timestamp: new Date().toISOString(),
-            unread_count: 0,
-            updated_at: new Date().toISOString(),
-          };
-          const { error: convErr } = await supabase.from('conversations').upsert(convRow);
-          if (convErr) {
-            console.warn('[SafePaw] Conversation upsert note:', convErr.message);
-          }
+        const convRow: any = {
+          id: conversationId,
+          clinic_id: convClinicId,
+          clinic_name: currentConv?.clinicName || matchedClinic.name || 'Veterinary Hospital',
+          clinic_avatar: currentConv?.clinicAvatar || matchedClinic.image || null,
+          pet_id: currentConv?.petId || (pets[0]?.id || 'pet-general'),
+          pet_name: currentConv?.petName || (pets[0]?.name || 'General Care Inquiry'),
+          owner_id: sessionUser?.id || null,
+          last_message: text,
+          last_timestamp: new Date().toISOString(),
+          unread_count: 0,
+          updated_at: new Date().toISOString(),
+        };
+        const { error: convErr } = await supabase.from('conversations').upsert(convRow);
+        if (convErr) {
+          console.error('[SafePaw] Conversation upsert error:', convErr.message);
         }
 
         // 2. Insert chat message with comprehensive column schema support
-        const senderName = currentRole === 'veterinarian' ? (activeVet?.name || 'Dr. Attending Vet') : 'Pet Parent';
+        const senderName = currentRole === 'veterinarian' ? (activeVet?.name || 'Dr. Attending Vet') : (sessionUser?.user_metadata?.full_name || 'Pet Parent');
         const msgRow: any = {
           id: msgId,
           conversation_id: conversationId,
@@ -1533,10 +1538,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (chatErr) {
           console.error('[SafePaw] Chat message insert error:', chatErr.message);
         } else {
-          console.log('[SafePaw] Chat message saved to Supabase successfully.');
+          console.log('[SafePaw] Chat message successfully saved to Supabase.');
         }
       } catch (err) {
-        console.warn('[SafePaw] Supabase chat write error:', err);
+        console.error('[SafePaw] Supabase chat write error:', err);
       }
     }
 
@@ -1580,7 +1585,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Sync new conversation to Supabase
     const supabase = getSupabase();
     if (supabase && isOnline) {
-      Promise.resolve(
+      supabase.auth.getUser().then(({ data: authData }) => {
         supabase.from('conversations').upsert({
           id: newConv.id,
           clinic_id: newConv.clinicId,
@@ -1588,16 +1593,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           clinic_avatar: newConv.clinicAvatar || null,
           pet_id: newConv.petId,
           pet_name: newConv.petName,
+          owner_id: authData.user?.id || null,
           last_message: newConv.lastMessage,
           last_timestamp: new Date().toISOString(),
           unread_count: 0,
           updated_at: new Date().toISOString(),
-        })
-      )
-        .then(({ error }: any) => {
-          if (error) console.warn('[SafePaw] Conversation create note:', error.message);
-        })
-        .catch((e: unknown) => console.warn('[SafePaw] Conversation sync error:', e));
+        }).then(({ error }: any) => {
+          if (error) console.error('[SafePaw] Conversation create error:', error.message);
+        });
+      });
     }
 
     return newConv.id;

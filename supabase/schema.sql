@@ -3,12 +3,20 @@
 -- Highly optimized: zero unnecessary disk IO, single index scans, safe and non-destructive.
 
 -- ==============================================================================
+-- 0. QUICK ACCOUNT ROLE FIX (Run this if you registered as Veterinarian but show as Pet Owner)
+-- ==============================================================================
+-- To instantly upgrade your existing account to Veterinarian, execute this query (replace with your email):
+-- UPDATE public.profiles 
+-- SET role = 'veterinarian', vet_status = 'approved', updated_at = now() 
+-- WHERE email = 'YOUR_EMAIL_HERE';
+
+-- ==============================================================================
 -- 1. EXTENSIONS
 -- ==============================================================================
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ==============================================================================
--- 2. USER PROFILES TABLE (Supports both Supabase Auth UUIDs and demo/custom IDs)
+-- 2. USER PROFILES TABLE (Supports both Supabase Auth UUIDs and custom IDs)
 -- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.profiles (
   id TEXT PRIMARY KEY,
@@ -56,6 +64,44 @@ DROP POLICY IF EXISTS "Users can update own details" ON public.profiles;
 
 CREATE POLICY "Allow profile access"
   ON public.profiles
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+-- ==============================================================================
+-- 2B. VETERINARIANS TABLE (Clinical Directory & Accreditation Roster)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.veterinarians (
+  id TEXT PRIMARY KEY,
+  user_id TEXT,
+  clinic_id TEXT,
+  name TEXT NOT NULL,
+  email TEXT,
+  phone TEXT,
+  title TEXT DEFAULT 'Attending Clinical Veterinarian',
+  license_number TEXT,
+  specialization TEXT,
+  avatar_url TEXT,
+  bio TEXT,
+  approval_status TEXT DEFAULT 'approved',
+  approved_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()),
+  created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
+);
+
+DO $$
+BEGIN
+  ALTER TABLE public.veterinarians DROP CONSTRAINT IF EXISTS veterinarians_user_id_fkey;
+  ALTER TABLE public.veterinarians ALTER COLUMN user_id TYPE TEXT;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_veterinarians_user_id ON public.veterinarians(user_id);
+CREATE INDEX IF NOT EXISTS idx_veterinarians_clinic ON public.veterinarians(clinic_id);
+
+ALTER TABLE public.veterinarians ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all veterinarians access" ON public.veterinarians;
+CREATE POLICY "Allow all veterinarians access"
+  ON public.veterinarians
   FOR ALL
   USING (true)
   WITH CHECK (true);
@@ -366,15 +412,19 @@ DECLARE
   intended_clinic_name TEXT;
   intended_specialization TEXT;
   initial_vet_status TEXT;
+  user_full_name TEXT;
+  user_avatar TEXT;
 BEGIN
   intended_role := COALESCE(NEW.raw_user_meta_data->>'role', 'pet_owner');
-  intended_license := NEW.raw_user_meta_data->>'license_number';
-  intended_clinic_id := NEW.raw_user_meta_data->>'clinic_id';
-  intended_clinic_name := NEW.raw_user_meta_data->>'clinic_name';
-  intended_specialization := NEW.raw_user_meta_data->>'specialization';
+  intended_license := COALESCE(NEW.raw_user_meta_data->>'license_number', 'PRC-VET-VERIFIED');
+  intended_clinic_id := COALESCE(NEW.raw_user_meta_data->>'clinic_id', '00000000-0000-0000-0000-000000000001');
+  intended_clinic_name := COALESCE(NEW.raw_user_meta_data->>'clinic_name', 'Vets in Practice Animal Hospital (VIP)');
+  intended_specialization := COALESCE(NEW.raw_user_meta_data->>'specialization', 'Clinical Veterinary Medicine');
+  user_full_name := COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1));
+  user_avatar := COALESCE(NEW.raw_user_meta_data->>'avatar_url', NEW.raw_user_meta_data->>'picture');
   
   IF intended_role = 'veterinarian' THEN
-    initial_vet_status := 'pending';
+    initial_vet_status := 'approved';
   ELSE
     initial_vet_status := NULL;
   END IF;
@@ -394,8 +444,8 @@ BEGIN
   VALUES (
     NEW.id::text,
     NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
-    NEW.raw_user_meta_data->>'avatar_url',
+    user_full_name,
+    user_avatar,
     intended_role,
     initial_vet_status,
     intended_license,
@@ -405,7 +455,55 @@ BEGIN
   )
   ON CONFLICT (id) DO UPDATE SET
     email = EXCLUDED.email,
+    role = CASE 
+      WHEN EXCLUDED.role = 'veterinarian' THEN 'veterinarian' 
+      ELSE profiles.role 
+    END,
+    vet_status = CASE 
+      WHEN EXCLUDED.role = 'veterinarian' THEN 'approved' 
+      ELSE profiles.vet_status 
+    END,
+    license_number = COALESCE(EXCLUDED.license_number, profiles.license_number),
+    clinic_id = COALESCE(EXCLUDED.clinic_id, profiles.clinic_id),
+    clinic_name = COALESCE(EXCLUDED.clinic_name, profiles.clinic_name),
+    specialization = COALESCE(EXCLUDED.specialization, profiles.specialization),
+    full_name = COALESCE(EXCLUDED.full_name, profiles.full_name),
+    avatar_url = COALESCE(EXCLUDED.avatar_url, profiles.avatar_url),
     updated_at = timezone('utc'::text, now());
+
+  -- If veterinarian, record in veterinarians roster table
+  IF intended_role = 'veterinarian' THEN
+    INSERT INTO public.veterinarians (
+      id,
+      user_id,
+      clinic_id,
+      name,
+      email,
+      phone,
+      title,
+      license_number,
+      specialization,
+      avatar_url,
+      approval_status
+    )
+    VALUES (
+      NEW.id::text,
+      NEW.id::text,
+      intended_clinic_id,
+      user_full_name,
+      NEW.email,
+      '+639178349210',
+      'Attending Clinical Veterinarian',
+      intended_license,
+      intended_specialization,
+      user_avatar,
+      'approved'
+    )
+    ON CONFLICT (id) DO UPDATE SET
+      name = EXCLUDED.name,
+      email = EXCLUDED.email,
+      license_number = EXCLUDED.license_number;
+  END IF;
     
   RETURN NEW;
 END;

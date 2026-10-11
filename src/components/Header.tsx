@@ -62,7 +62,7 @@ export const Header: React.FC<HeaderProps> = ({
   const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
 
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, switchRole } = useAuth();
 
   const unreadNotifsCount = notifications.filter((n) => !n.read).length;
 
@@ -396,7 +396,31 @@ export const Header: React.FC<HeaderProps> = ({
                     </div>
                   </div>
 
-                  <div className="p-1">
+                  <div className="p-1 space-y-0.5">
+                    {profile?.role !== 'veterinarian' ? (
+                      <button
+                        onClick={async () => {
+                          setUserDropdownOpen(false);
+                          await switchRole('veterinarian');
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-teal-800 hover:bg-teal-50 rounded-lg transition font-medium"
+                      >
+                        <Stethoscope className="w-3.5 h-3.5 text-teal-600" />
+                        <span>Switch to Veterinarian Role</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={async () => {
+                          setUserDropdownOpen(false);
+                          await switchRole('pet_owner');
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-teal-800 hover:bg-teal-50 rounded-lg transition font-medium"
+                      >
+                        <Heart className="w-3.5 h-3.5 text-teal-600" />
+                        <span>Switch to Pet Owner Role</span>
+                      </button>
+                    )}
+
                     <button
                       onClick={() => {
                         setUserDropdownOpen(false);

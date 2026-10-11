@@ -120,6 +120,8 @@ const applicationsStore: VetApplicationRecord[] = [];
 app.get('/api/auth/config', (_req: Request, res: Response) => {
   res.json({
     googleClientId: process.env.GOOGLE_CLIENT_ID || '',
+    supabaseUrl: process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '',
+    supabaseAnonKey: process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '',
     defaultCountryCode: '+63',
     defaultCountryName: 'Philippines',
   });

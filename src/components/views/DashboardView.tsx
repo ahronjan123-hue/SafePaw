@@ -322,7 +322,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 onClick={onOpenNewPetModal}
                 className="inline-flex items-center gap-2 px-6 py-3.5 rounded-2xl bg-teal-500 hover:bg-teal-400 text-stone-950 font-bold text-sm transition shadow-lg cursor-pointer"
               >
-                <Plus className="w-5 h-5" />
+                <Shield className="w-5 h-5" />
                 <span>Register Your First Pet</span>
               </button>
             </div>

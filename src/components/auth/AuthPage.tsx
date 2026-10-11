@@ -6,25 +6,18 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
-  Key,
-  Database,
-  X,
-  Check,
   FileText,
   Shield,
   Calendar,
   Activity,
-  Sparkles,
 } from 'lucide-react';
 import { INITIAL_CLINICS } from '../../data/initialData';
-import { SupabaseSetupHelperModal } from './SupabaseSetupHelperModal';
 
 export const AuthPage: React.FC = () => {
   const {
     signInWithGoogle,
     signInWithEmail,
     signUpWithEmail,
-    loginAsDemoUser,
     authError,
     setAuthError,
     isConfigured,
@@ -35,7 +28,6 @@ export const AuthPage: React.FC = () => {
   const [authMethod, setAuthMethod] = useState<'google' | 'email'>('google');
   const [isSigningUp, setIsSigningUp] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [setupModalOpen, setSetupModalOpen] = useState(false);
 
 
 
@@ -62,6 +54,12 @@ export const AuthPage: React.FC = () => {
         setIsSubmitting(false);
         return;
       }
+
+      // Persist chosen role in localStorage
+      try {
+        localStorage.setItem('safepaw_intended_role', portalMode);
+        localStorage.setItem('safepaw_role_v5_live', portalMode);
+      } catch {}
 
       const result = await signInWithGoogle(portalMode, {
         fullName: overrideName || (fullName.trim() ? fullName.trim() : undefined),
@@ -148,16 +146,6 @@ export const AuthPage: React.FC = () => {
               </span>
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={() => setSetupModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 border border-stone-700 text-stone-300 hover:text-white text-xs font-medium transition cursor-pointer"
-          >
-            <Database className="w-3.5 h-3.5 text-teal-400" />
-            <span className="hidden sm:inline">Supabase Setup Guide</span>
-            <span className="sm:hidden">Setup</span>
-          </button>
         </div>
       </header>
 
@@ -435,72 +423,9 @@ export const AuthPage: React.FC = () => {
               </form>
             )}
 
-            {/* Instant 1-Click Demo Accounts */}
-            <div className="pt-4 border-t border-stone-800/80 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  Instant Demo Accounts
-                </span>
-                <span className="text-[10px] text-stone-400 font-mono">No password required</span>
-              </div>
-
-              {!isConfigured && (
-                <div className="p-2.5 rounded-xl bg-teal-950/40 border border-teal-800/50 text-[11px] text-teal-300 leading-relaxed flex items-center justify-between gap-2">
-                  <span>Demo preview mode active. Try either persona below:</span>
-                  <button
-                    type="button"
-                    onClick={() => setSetupModalOpen(true)}
-                    className="text-[10px] underline font-semibold text-teal-200 hover:text-white shrink-0 cursor-pointer"
-                  >
-                    Config Guide
-                  </button>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => loginAsDemoUser('pet_owner')}
-                  className="p-3 rounded-xl bg-stone-950 hover:bg-stone-800/80 border border-stone-800 text-left transition group cursor-pointer"
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="w-5 h-5 rounded-md bg-teal-500/20 text-teal-400 flex items-center justify-center text-xs">
-                      <Heart className="w-3 h-3" />
-                    </div>
-                    <span className="text-xs font-bold text-stone-100 group-hover:text-teal-300 transition">
-                      Pet Parent
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-stone-400">Maria Santos (Pets & Care)</div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => loginAsDemoUser('veterinarian')}
-                  className="p-3 rounded-xl bg-stone-950 hover:bg-stone-800/80 border border-stone-800 text-left transition group cursor-pointer"
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="w-5 h-5 rounded-md bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs">
-                      <Stethoscope className="w-3 h-3" />
-                    </div>
-                    <span className="text-xs font-bold text-stone-100 group-hover:text-emerald-300 transition">
-                      Licensed Vet
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-stone-400">Dr. Elena Ramos, DVM (EMR)</div>
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       </main>
-
-      {/* Supabase SQL & Env Guide Modal */}
-      <SupabaseSetupHelperModal
-        isOpen={setupModalOpen}
-        onClose={() => setSetupModalOpen(false)}
-      />
 
       {/* Footer */}
       <footer className="border-t border-stone-900 bg-stone-950 px-4 py-6 text-center text-stone-500 text-xs space-y-2">

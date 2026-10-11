@@ -323,7 +323,7 @@ export const BookingView: React.FC = () => {
                   onClick={() => setCurrentTab('dashboard')}
                   className="px-3.5 py-1.5 bg-teal-600 text-white font-semibold rounded-lg text-xs hover:bg-teal-700 transition cursor-pointer self-start sm:self-auto"
                 >
-                  + Register Pet
+                  Register Pet
                 </button>
               </div>
             )}

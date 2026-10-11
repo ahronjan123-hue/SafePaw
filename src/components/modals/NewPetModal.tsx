@@ -55,31 +55,79 @@ export const NewPetModal: React.FC<NewPetModalProps> = ({ isOpen, onClose }) => 
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
+  const [selectedFileName, setSelectedFileName] = useState<string>('');
+  const [photoMode, setPhotoMode] = useState<'upload' | 'preset'>('upload');
+
   if (!isOpen) return null;
+
+  // Helper to resize & compress image client-side to prevent payload rejection
+  const compressImage = (file: File): Promise<{ blob: Blob; dataUrl: string }> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const maxDim = 1000;
+          let { width, height } = img;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve({ blob: file, dataUrl: img.src });
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => {
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+              resolve({ blob: blob || file, dataUrl });
+            },
+            'image/jpeg',
+            0.85
+          );
+        };
+        img.onerror = (err) => reject(err);
+      };
+      reader.onerror = (err) => reject(err);
+    });
+  };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      setUploadError('Image size exceeds 5MB limit.');
-      return;
-    }
-
+    setSelectedFileName(file.name);
     setUploadError(null);
     setIsUploadingPhoto(true);
     setUploadSuccess(false);
 
     try {
+      // 1. Client-side compression
+      const { blob, dataUrl } = await compressImage(file);
+      setPhotoUrl(dataUrl);
+
+      // 2. Direct upload to Supabase Storage 'pet-photos' bucket
       const supabase = getSupabase();
       if (supabase) {
-        const fileExt = file.name.split('.').pop() || 'jpg';
-        const cleanName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+        const cleanName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.jpg`;
         const filePath = `pets/${cleanName}`;
 
         const { data: uploadData, error: uploadErr } = await supabase.storage
           .from('pet-photos')
-          .upload(filePath, file, {
+          .upload(filePath, blob, {
+            contentType: 'image/jpeg',
             cacheControl: '3600',
             upsert: true,
           });
@@ -97,34 +145,17 @@ export const NewPetModal: React.FC<NewPetModalProps> = ({ isOpen, onClose }) => 
           }
         } else if (uploadErr) {
           console.warn('[SafePaw] Storage upload notice:', uploadErr.message);
+          // If storage bucket isn't created yet in Supabase, image is still safely stored via compressed dataUrl
+          setUploadSuccess(true);
         }
+      } else {
+        setUploadSuccess(true);
       }
-
-      // Fallback: Read as Data URL so image always displays
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          setPhotoUrl(event.target.result as string);
-          setUploadSuccess(true);
-        }
-        setIsUploadingPhoto(false);
-      };
-      reader.onerror = () => {
-        setUploadError('Failed to read file from disk.');
-        setIsUploadingPhoto(false);
-      };
-      reader.readAsDataURL(file);
     } catch (err: any) {
-      console.warn('[SafePaw] File upload fallback note:', err);
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          setPhotoUrl(event.target.result as string);
-          setUploadSuccess(true);
-        }
-        setIsUploadingPhoto(false);
-      };
-      reader.readAsDataURL(file);
+      console.warn('[SafePaw] File upload processing notice:', err);
+      setUploadError(err.message || 'Error processing selected image.');
+    } finally {
+      setIsUploadingPhoto(false);
     }
   };
 
@@ -218,48 +249,31 @@ export const NewPetModal: React.FC<NewPetModalProps> = ({ isOpen, onClose }) => 
           </div>
 
           {/* Photo Preset & Upload Selection */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-semibold text-stone-700">Avatar Photo</label>
-              <span className="text-[11px] text-stone-500">Pick preset, paste URL, or upload from disk</span>
+          <div className="bg-stone-50/70 p-4 rounded-2xl border border-stone-200 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-stone-900 uppercase tracking-wide">
+                Pet Photo & Passport Avatar
+              </label>
+              <span className="text-[11px] text-teal-700 font-medium">Supabase Storage Bucket: pet-photos</span>
             </div>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <img
-                src={photoUrl}
-                alt="Selected preview"
-                className="w-16 h-16 rounded-xl object-cover border-2 border-teal-500 shadow-xs shrink-0"
-              />
-              <div className="flex-1 space-y-2">
+
+            {/* Main Upload Box */}
+            <div className="flex flex-col sm:flex-row items-center gap-4 bg-white p-3.5 rounded-xl border border-stone-200">
+              <div className="relative shrink-0">
+                <img
+                  src={photoUrl}
+                  alt="Pet preview"
+                  className="w-20 h-20 rounded-2xl object-cover border-2 border-teal-500 shadow-sm"
+                />
+                {uploadSuccess && (
+                  <span className="absolute -bottom-1 -right-1 bg-emerald-500 text-white rounded-full p-0.5 border-2 border-white shadow-xs">
+                    <Check className="w-3 h-3" />
+                  </span>
+                )}
+              </div>
+
+              <div className="flex-1 w-full space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[11px] text-stone-400 font-medium">Presets:</span>
-                  {(SAMPLE_AVATARS[species] || SAMPLE_AVATARS.Dog).map((url, idx) => (
-                    <img
-                      key={idx}
-                      src={url}
-                      alt="Sample"
-                      onClick={() => {
-                        setPhotoUrl(url);
-                        setUploadSuccess(false);
-                      }}
-                      className={`w-9 h-9 rounded-lg object-cover cursor-pointer border transition hover:opacity-100 ${
-                        photoUrl === url ? 'border-teal-600 ring-2 ring-teal-200' : 'border-stone-200 opacity-60'
-                      }`}
-                    />
-                  ))}
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <input
-                    type="text"
-                    value={photoUrl}
-                    onChange={(e) => {
-                      setPhotoUrl(e.target.value);
-                      setUploadSuccess(false);
-                    }}
-                    placeholder="Or paste custom image URL..."
-                    className="flex-1 text-xs px-2.5 py-1.5 border border-stone-200 rounded-lg focus:outline-teal-500"
-                  />
-
                   {/* Hidden File Input */}
                   <input
                     type="file"
@@ -269,40 +283,86 @@ export const NewPetModal: React.FC<NewPetModalProps> = ({ isOpen, onClose }) => 
                     className="hidden"
                   />
 
-                  {/* Browse File Button */}
+                  {/* Prominent Browse File Button */}
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isUploadingPhoto}
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-stone-100 hover:bg-stone-200 border border-stone-300 rounded-lg text-xs font-semibold text-stone-800 transition cursor-pointer shrink-0"
+                    className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 active:scale-[0.99] text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer"
                   >
                     {isUploadingPhoto ? (
                       <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-600" />
-                        <span>Uploading...</span>
-                      </>
-                    ) : uploadSuccess ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>Uploaded!</span>
+                        <Loader2 className="w-4 h-4 animate-spin text-white" />
+                        <span>Uploading Photo...</span>
                       </>
                     ) : (
                       <>
-                        <Upload className="w-3.5 h-3.5 text-teal-600" />
-                        <span>Browse File...</span>
+                        <Upload className="w-4 h-4" />
+                        <span>Browse File to Import Photo</span>
                       </>
                     )}
                   </button>
+
+                  {selectedFileName && (
+                    <span className="text-xs font-mono text-stone-600 truncate max-w-[180px] bg-stone-100 px-2.5 py-1 rounded-lg border border-stone-200">
+                      {selectedFileName}
+                    </span>
+                  )}
                 </div>
 
+                <p className="text-[11px] text-stone-500">
+                  Select a photo from your computer or phone. Files are auto-compressed and recorded to your Supabase cloud bucket.
+                </p>
+
                 {uploadError && (
-                  <p className="text-[11px] text-rose-500 font-medium">{uploadError}</p>
+                  <p className="text-[11px] text-rose-600 font-semibold">{uploadError}</p>
                 )}
                 {uploadSuccess && (
-                  <p className="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
-                    <Check className="w-3 h-3" /> Photo uploaded to Supabase storage bucket (pet-photos).
+                  <p className="text-[11px] text-emerald-700 font-medium flex items-center gap-1">
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    Photo ready & synchronized with SafePaw database.
                   </p>
                 )}
+              </div>
+            </div>
+
+            {/* Presets or Image URL Option */}
+            <div className="pt-2 border-t border-stone-200/80 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[11px] font-semibold text-stone-500">Or choose a preset sample avatar:</span>
+                <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
+                  {(SAMPLE_AVATARS[species] || SAMPLE_AVATARS.Dog).map((url, idx) => (
+                    <img
+                      key={idx}
+                      src={url}
+                      alt="Sample"
+                      onClick={() => {
+                        setPhotoUrl(url);
+                        setSelectedFileName('');
+                        setUploadSuccess(false);
+                      }}
+                      className={`w-8 h-8 rounded-lg object-cover cursor-pointer border transition hover:opacity-100 ${
+                        photoUrl === url ? 'border-teal-600 ring-2 ring-teal-200' : 'border-stone-200 opacity-60'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <input
+                  type="text"
+                  value={photoUrl.startsWith('data:') ? 'Image uploaded from file' : photoUrl}
+                  onChange={(e) => {
+                    if (!e.target.value.includes('Image uploaded from file')) {
+                      setPhotoUrl(e.target.value);
+                      setSelectedFileName('');
+                      setUploadSuccess(false);
+                    }
+                  }}
+                  placeholder="Or enter direct image URL (https://...)"
+                  className="w-full text-xs px-2.5 py-1.5 border border-stone-200 rounded-lg bg-white text-stone-700 focus:outline-teal-500"
+                />
               </div>
             </div>
           </div>

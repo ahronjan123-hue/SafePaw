@@ -75,21 +75,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const supabase = getSupabase();
     if (!supabase) return null;
 
-    // Check if there was an intended role (e.g. from Google OAuth or Veterinarian portal redirect)
+    // Check if there was an intended role (e.g. from Google OAuth or Veterinarian portal)
     let intendedRole: 'pet_owner' | 'veterinarian' | null = null;
     let intendedMeta: any = null;
     if (typeof window !== 'undefined') {
       try {
-        const storedRole = sessionStorage.getItem('safepaw_intended_role') as any;
+        const storedRole = (localStorage.getItem('safepaw_intended_role') || sessionStorage.getItem('safepaw_intended_role')) as any;
         if (storedRole === 'veterinarian' || storedRole === 'pet_owner') {
           intendedRole = storedRole;
         }
-        const storedMeta = sessionStorage.getItem('safepaw_intended_metadata');
+        const storedMeta = localStorage.getItem('safepaw_intended_metadata') || sessionStorage.getItem('safepaw_intended_metadata');
         if (storedMeta) {
           intendedMeta = JSON.parse(storedMeta);
         }
-        sessionStorage.removeItem('safepaw_intended_role');
-        sessionStorage.removeItem('safepaw_intended_metadata');
       } catch {}
     }
 
@@ -120,38 +118,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch {}
 
       if (data) {
-        const effectiveRole = intendedRole || data.role || 'pet_owner';
+        // If user logged in as veterinarian or user metadata is veterinarian, prioritize veterinarian role
+        const effectiveRole = (intendedRole === 'veterinarian' || metadata.role === 'veterinarian' || data.role === 'veterinarian')
+          ? 'veterinarian'
+          : (data.role || intendedRole || 'pet_owner');
+
         const effectiveFullName = data.full_name || realGoogleName;
         const effectiveAvatar = data.avatar_url || realAvatar;
-        const effectiveClinicId = intendedMeta?.clinicId || vetRecord?.clinic_id || '00000000-0000-0000-0000-000000000001';
-        const effectiveClinicName = intendedMeta?.clinicName || 'Vets in Practice Animal Hospital (VIP)';
-        const effectiveLicense = intendedMeta?.licenseNumber || vetRecord?.license_number || 'PRC-VET-VERIFIED';
-        const effectiveSpec = intendedMeta?.specialization || vetRecord?.specialization || 'Clinical Veterinary Medicine';
+        const effectiveClinicId = intendedMeta?.clinicId || data.clinic_id || vetRecord?.clinic_id || '00000000-0000-0000-0000-000000000001';
+        const effectiveClinicName = intendedMeta?.clinicName || data.clinic_name || 'Vets in Practice Animal Hospital (VIP)';
+        const effectiveLicense = intendedMeta?.licenseNumber || data.license_number || vetRecord?.license_number || 'PRC-VET-VERIFIED';
+        const effectiveSpec = intendedMeta?.specialization || data.specialization || vetRecord?.specialization || 'Clinical Veterinary Medicine';
 
-        if (intendedRole && intendedRole !== data.role) {
+        // Synchronize profiles table if role was updated or was recorded incorrectly
+        if (effectiveRole !== data.role || (effectiveRole === 'veterinarian' && data.vet_status !== 'approved')) {
           await supabase.from('profiles').update({
             role: effectiveRole,
+            vet_status: effectiveRole === 'veterinarian' ? 'approved' : null,
             full_name: effectiveFullName,
+            license_number: effectiveLicense,
+            clinic_id: effectiveClinicId,
+            clinic_name: effectiveClinicName,
+            specialization: effectiveSpec,
             updated_at: new Date().toISOString(),
           }).eq('id', userId);
         }
 
         if (effectiveRole === 'veterinarian' && !vetRecord) {
-          await supabase.from('veterinarians').upsert({
-            id: userId,
-            user_id: userId,
-            clinic_id: effectiveClinicId,
-            name: effectiveFullName,
-            email: userEmail,
-            phone: data.phone || '+639178349210',
-            title: 'Attending Clinical Veterinarian',
-            license_number: effectiveLicense,
-            specialization: effectiveSpec,
-            avatar_url: effectiveAvatar,
-            approval_status: 'approved',
-            approved_at: new Date().toISOString(),
-            created_at: new Date().toISOString(),
-          });
+          try {
+            await supabase.from('veterinarians').upsert({
+              id: userId,
+              user_id: userId,
+              clinic_id: effectiveClinicId,
+              name: effectiveFullName,
+              email: userEmail,
+              phone: data.phone || '+639178349210',
+              title: 'Attending Clinical Veterinarian',
+              license_number: effectiveLicense,
+              specialization: effectiveSpec,
+              avatar_url: effectiveAvatar,
+              approval_status: 'approved',
+              approved_at: new Date().toISOString(),
+              created_at: new Date().toISOString(),
+            });
+          } catch {}
         }
 
         return {
@@ -165,7 +175,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           clinicId: effectiveClinicId,
           clinicName: effectiveClinicName,
           specialization: effectiveSpec,
-          bio: vetRecord?.bio || '',
+          bio: data.bio || vetRecord?.bio || '',
           phone: data.phone || vetRecord?.phone || '',
           createdAt: data.created_at || new Date().toISOString(),
           updatedAt: data.updated_at,
@@ -369,10 +379,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       if (typeof window !== 'undefined') {
-        sessionStorage.setItem('safepaw_intended_role', role);
-        if (extraData) {
-          sessionStorage.setItem('safepaw_intended_metadata', JSON.stringify(extraData));
-        }
+        try {
+          localStorage.setItem('safepaw_intended_role', role);
+          localStorage.setItem('safepaw_role_v5_live', role);
+          if (extraData) {
+            localStorage.setItem('safepaw_intended_metadata', JSON.stringify(extraData));
+          }
+        } catch {}
       }
 
       const { error } = await supabase.auth.signInWithOAuth({
@@ -382,6 +395,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           queryParams: {
             access_type: 'offline',
             prompt: 'consent select_account',
+            role: role,
           },
         },
       });
@@ -426,11 +440,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      if (intendedRole) {
-        sessionStorage.setItem('safepaw_intended_role', intendedRole);
-        if (extraData) {
-          sessionStorage.setItem('safepaw_intended_metadata', JSON.stringify(extraData));
-        }
+      if (intendedRole && typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('safepaw_intended_role', intendedRole);
+          localStorage.setItem('safepaw_role_v5_live', intendedRole);
+          if (extraData) {
+            localStorage.setItem('safepaw_intended_metadata', JSON.stringify(extraData));
+          }
+        } catch {}
       }
 
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -447,6 +464,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (data?.user) {
         setUser(data.user);
         setSession(data.session);
+
+        // If veterinarian was selected on sign in, ensure profile in Supabase is updated to veterinarian!
+        if (intendedRole === 'veterinarian') {
+          try {
+            await supabase.auth.updateUser({
+              data: {
+                role: 'veterinarian',
+                vet_status: 'approved',
+                license_number: extraData?.licenseNumber || 'PRC-VET-VERIFIED',
+                clinic_id: extraData?.clinicId || '00000000-0000-0000-0000-000000000001',
+                clinic_name: extraData?.clinicName || 'Vets in Practice Animal Hospital (VIP)',
+                specialization: extraData?.specialization || 'Clinical Veterinary Medicine',
+              },
+            });
+            await supabase.from('profiles').update({
+              role: 'veterinarian',
+              vet_status: 'approved',
+              license_number: extraData?.licenseNumber || 'PRC-VET-VERIFIED',
+              clinic_id: extraData?.clinicId || '00000000-0000-0000-0000-000000000001',
+              clinic_name: extraData?.clinicName || 'Vets in Practice Animal Hospital (VIP)',
+              specialization: extraData?.specialization || 'Clinical Veterinary Medicine',
+              updated_at: new Date().toISOString(),
+            }).eq('id', data.user.id);
+          } catch {}
+        }
+
         const prof = await fetchProfileFromSupabase(data.user.id, data.user.email || '');
         if (prof) {
           setProfile(prof);
@@ -765,6 +808,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       localStorage.setItem('safepaw_role_v3', newRole);
+      localStorage.setItem('safepaw_intended_role', newRole);
+      localStorage.setItem('safepaw_role_v5_live', newRole);
       if (user) {
         localStorage.setItem(
           'safepaw_active_user_session_v5',
@@ -790,6 +835,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             updated_at: new Date().toISOString(),
           })
           .eq('id', profile.id);
+
+        await supabase.auth.updateUser({
+          data: {
+            role: updatedProfile.role,
+            vet_status: updatedProfile.vetStatus,
+            license_number: updatedProfile.licenseNumber,
+          },
+        });
       } catch (err) {
         console.warn('Supabase role switch note:', err);
       }
