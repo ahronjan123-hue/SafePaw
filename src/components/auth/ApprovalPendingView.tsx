@@ -10,13 +10,17 @@ import {
 } from 'lucide-react';
 
 export const ApprovalPendingView: React.FC = () => {
-  const { profile, signOut, refreshProfile } = useAuth();
+  const { profile, signOut, refreshProfile, approvePendingVet } = useAuth();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
     await refreshProfile();
     setTimeout(() => setIsRefreshing(false), 800);
+  };
+
+  const handleSimulateApproval = () => {
+    approvePendingVet();
   };
 
   return (
@@ -134,7 +138,7 @@ export const ApprovalPendingView: React.FC = () => {
           </div>
 
           {/* Action Buttons */}
-          <div className="pt-3">
+          <div className="pt-3 space-y-2">
             <button
               onClick={handleRefresh}
               disabled={isRefreshing}
@@ -142,6 +146,14 @@ export const ApprovalPendingView: React.FC = () => {
             >
               <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
               <span>{isRefreshing ? 'Checking Accreditation Status...' : 'Check Approval Status'}</span>
+            </button>
+
+            <button
+              onClick={handleSimulateApproval}
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white font-medium text-xs transition cursor-pointer border border-stone-700/60"
+            >
+              <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Simulate Board Approval (Test Clinical Portal)</span>
             </button>
           </div>
         </div>

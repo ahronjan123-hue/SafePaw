@@ -283,6 +283,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
+      // Check saved local/demo session if no active Supabase session
+      if (typeof window !== 'undefined') {
+        try {
+          const savedSession = localStorage.getItem('safepaw_active_user_session_v5');
+          if (savedSession) {
+            const parsed = JSON.parse(savedSession);
+            if (parsed?.user && parsed?.profile && isMounted) {
+              setUser(parsed.user);
+              setProfile(parsed.profile);
+              setIsLoading(false);
+              return;
+            }
+          }
+        } catch (err) {
+          console.warn('[SafePaw] Local session read note:', err);
+        }
+      }
+
       if (isMounted) {
         setUser(null);
         setSession(null);
