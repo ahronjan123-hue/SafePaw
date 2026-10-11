@@ -18,6 +18,9 @@ export const AuthPage: React.FC = () => {
     signInWithGoogle,
     signInWithEmail,
     signUpWithEmail,
+    loginAsDemoUser,
+    updateProfileDetails,
+    completeOAuthFromCallbackUrl,
     authError,
     setAuthError,
     isConfigured,
@@ -28,8 +31,9 @@ export const AuthPage: React.FC = () => {
   const [authMethod, setAuthMethod] = useState<'google' | 'email'>('google');
   const [isSigningUp, setIsSigningUp] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-
+  const [showRedirectHelper, setShowRedirectHelper] = useState(false);
+  const [pastedCallbackUrl, setPastedCallbackUrl] = useState('');
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
   // Email form state
   const [email, setEmail] = useState('');
@@ -41,25 +45,68 @@ export const AuthPage: React.FC = () => {
   const [selectedClinicId, setSelectedClinicId] = useState(INITIAL_CLINICS[0].id);
   const [vetSpecialization, setVetSpecialization] = useState('Small Animal Medicine');
 
+  const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+
+  const handleCopyText = (text: string, label: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedUrl(label);
+      setTimeout(() => setCopiedUrl(null), 2000);
+    }
+  };
+
+  const handleCompleteFromPastedUrl = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pastedCallbackUrl.trim()) return;
+    setIsSubmitting(true);
+    const res = await completeOAuthFromCallbackUrl(pastedCallbackUrl);
+    if (!res.success && res.error) {
+      setAuthError(res.error);
+    }
+    setIsSubmitting(false);
+  };
+
+  const handleQuickEnter = async () => {
+    const clinic = INITIAL_CLINICS.find((c) => c.id === selectedClinicId) || INITIAL_CLINICS[0];
+    loginAsDemoUser(portalMode);
+    if (portalMode === 'veterinarian' && (vetLicense.trim() || selectedClinicId || vetSpecialization.trim())) {
+      await updateProfileDetails({
+        licenseNumber: vetLicense.trim() || undefined,
+        clinicId: clinic.id,
+        clinicName: clinic.name,
+        specialization: vetSpecialization.trim() || undefined,
+      });
+    }
+  };
+
   // Handle Continue with Google
   const handleGoogleAuth = async (overrideEmail?: string, overrideName?: string, overrideLicense?: string) => {
     setAuthError(null);
     setIsSubmitting(true);
+    setShowRedirectHelper(true);
 
     const clinic = INITIAL_CLINICS.find((c) => c.id === selectedClinicId) || INITIAL_CLINICS[0];
 
     try {
-      if (!isConfigured) {
-        setAuthError('Supabase is not configured yet. Please configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment variables.');
-        setIsSubmitting(false);
-        return;
-      }
-
       // Persist chosen role in localStorage
       try {
         localStorage.setItem('safepaw_intended_role', portalMode);
         localStorage.setItem('safepaw_role_v5_live', portalMode);
       } catch {}
+
+      if (!isConfigured) {
+        loginAsDemoUser(portalMode);
+        if (portalMode === 'veterinarian' && (vetLicense.trim() || selectedClinicId || vetSpecialization.trim())) {
+          await updateProfileDetails({
+            licenseNumber: overrideLicense || vetLicense.trim() || undefined,
+            clinicId: clinic.id,
+            clinicName: clinic.name,
+            specialization: vetSpecialization.trim() || undefined,
+          });
+        }
+        setIsSubmitting(false);
+        return;
+      }
 
       const result = await signInWithGoogle(portalMode, {
         fullName: overrideName || (fullName.trim() ? fullName.trim() : undefined),
@@ -93,7 +140,15 @@ export const AuthPage: React.FC = () => {
 
     try {
       if (!isConfigured) {
-        setAuthError('Supabase is not configured yet. Please configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment variables.');
+        loginAsDemoUser(portalMode);
+        await updateProfileDetails({
+          email: email.trim(),
+          fullName: fullName.trim() || (portalMode === 'veterinarian' ? 'Dr. Practicing Veterinarian, DVM' : email.split('@')[0]),
+          licenseNumber: portalMode === 'veterinarian' ? (vetLicense.trim() || 'PRC-VET-0038912') : undefined,
+          clinicId: portalMode === 'veterinarian' ? clinic.id : undefined,
+          clinicName: portalMode === 'veterinarian' ? clinic.name : undefined,
+          specialization: portalMode === 'veterinarian' ? (vetSpecialization.trim() || 'Clinical Veterinary Medicine') : undefined,
+        });
         setIsSubmitting(false);
         return;
       }

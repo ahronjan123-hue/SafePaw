@@ -339,6 +339,44 @@ app.post('/api/auth/vet/review-application', (req: Request, res: Response) => {
   }
 });
 
+// 6. OAuth Callback Handler (supports both popup postMessage and direct redirect)
+app.get(['/auth/callback', '/auth/callback/'], (_req: Request, res: Response) => {
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>SafePaw Authentication</title>
+    <style>
+      body { background: #0c0a09; color: #f5f5f4; font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; }
+      .card { background: #1c1917; border: 1px solid #292524; padding: 24px 32px; border-radius: 16px; max-width: 400px; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h3>Completing SafePaw Sign-In...</h3>
+      <p style="font-size: 13px; color: #a8a29e;">Please wait a moment while we verify your session.</p>
+    </div>
+    <script>
+      (function() {
+        var hash = window.location.hash || '';
+        var search = window.location.search || '';
+        if (window.opener) {
+          window.opener.postMessage({
+            type: 'SAFEPAW_OAUTH_CALLBACK',
+            hash: hash,
+            search: search,
+            href: window.location.href
+          }, '*');
+          setTimeout(function() { window.close(); }, 300);
+        } else {
+          window.location.replace('/' + search + hash);
+        }
+      })();
+    </script>
+  </body>
+</html>`);
+});
+
 // Vite mounting & Static handler
 async function startServer() {
   if (!isProd) {

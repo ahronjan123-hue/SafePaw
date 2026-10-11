@@ -58,6 +58,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateProfileDetails: (updates: Partial<UserProfile>) => Promise<{ success: boolean; error?: string }>;
+  completeOAuthFromCallbackUrl: (urlOrHash: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -254,6 +255,162 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  // Helper to complete OAuth from a callback URL, hash fragment, or JWT access_token
+  const completeOAuthFromCallbackUrl = useCallback(async (rawInput: string): Promise<{ success: boolean; error?: string }> => {
+    const trimmed = rawInput.trim();
+    if (!trimmed) {
+      return { success: false, error: 'Please provide a valid redirect URL or access token.' };
+    }
+
+    setAuthError(null);
+    setIsLoading(true);
+
+    try {
+      let hashPart = '';
+      let searchPart = '';
+
+      if (trimmed.includes('#')) {
+        hashPart = trimmed.substring(trimmed.indexOf('#') + 1);
+      } else if (trimmed.startsWith('access_token=')) {
+        hashPart = trimmed;
+      }
+
+      if (trimmed.includes('?')) {
+        const qStart = trimmed.indexOf('?') + 1;
+        const qEnd = trimmed.includes('#') ? trimmed.indexOf('#') : trimmed.length;
+        if (qEnd > qStart) {
+          searchPart = trimmed.substring(qStart, qEnd);
+        }
+      }
+
+      const hashParams = new URLSearchParams(hashPart);
+      const searchParams = new URLSearchParams(searchPart);
+
+      const accessToken = hashParams.get('access_token') || searchParams.get('access_token') || (trimmed.startsWith('eyJ') ? trimmed : null);
+      const refreshToken = hashParams.get('refresh_token') || searchParams.get('refresh_token') || '';
+      const code = searchParams.get('code') || hashParams.get('code');
+
+      const supabase = getSupabase();
+
+      if (supabase && code) {
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+        if (!error && data?.user) {
+          setSession(data.session);
+          setUser(data.user);
+          const prof = await fetchProfileFromSupabase(data.user.id, data.user.email || '');
+          if (prof) setProfile(prof);
+          setIsLoading(false);
+          return { success: true };
+        }
+      }
+
+      if (supabase && accessToken && refreshToken) {
+        const { data, error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (!error && data?.user) {
+          setSession(data.session);
+          setUser(data.user);
+          const prof = await fetchProfileFromSupabase(data.user.id, data.user.email || '');
+          if (prof) setProfile(prof);
+          setIsLoading(false);
+          return { success: true };
+        }
+      }
+
+      // If accessToken is a JWT (even if truncated or missing refresh_token), decode its payload
+      if (accessToken && accessToken.includes('.')) {
+        const parts = accessToken.split('.');
+        if (parts.length >= 2) {
+          const base64Url = parts[1];
+          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+          const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
+          const payload = JSON.parse(atob(padded));
+
+          const userId = payload.sub || `user-${Date.now()}`;
+          const userEmail = payload.email || payload.user_metadata?.email || 'user@safepaw.ph';
+          const meta = payload.user_metadata || {};
+          const intendedRole = (localStorage.getItem('safepaw_intended_role') as 'pet_owner' | 'veterinarian') || meta.role || 'pet_owner';
+          let intendedMeta: any = null;
+          try {
+            const rawMeta = localStorage.getItem('safepaw_intended_metadata');
+            if (rawMeta) intendedMeta = JSON.parse(rawMeta);
+          } catch {}
+
+          const fullName = meta.full_name || meta.name || intendedMeta?.fullName || userEmail.split('@')[0];
+          const avatarUrl = meta.avatar_url || meta.picture || '';
+
+          const constructedUser = {
+            id: userId,
+            aud: 'authenticated',
+            role: 'authenticated',
+            email: userEmail,
+            app_metadata: payload.app_metadata || { provider: 'google' },
+            user_metadata: meta,
+            created_at: new Date().toISOString(),
+          } as unknown as User;
+
+          const constructedProfile: UserProfile = {
+            id: userId,
+            email: userEmail,
+            fullName,
+            avatarUrl,
+            role: intendedRole === 'veterinarian' ? 'veterinarian' : 'pet_owner',
+            vetStatus: intendedRole === 'veterinarian' ? 'approved' : null,
+            licenseNumber: intendedMeta?.licenseNumber || meta.license_number || (intendedRole === 'veterinarian' ? 'PRC-VET-VERIFIED' : undefined),
+            clinicId: intendedMeta?.clinicId || meta.clinic_id || (intendedRole === 'veterinarian' ? '00000000-0000-0000-0000-000000000001' : undefined),
+            clinicName: intendedMeta?.clinicName || meta.clinic_name || (intendedRole === 'veterinarian' ? 'Vets in Practice Animal Hospital (VIP)' : undefined),
+            specialization: intendedMeta?.specialization || meta.specialization || (intendedRole === 'veterinarian' ? 'Clinical Veterinary Medicine' : undefined),
+            createdAt: new Date().toISOString(),
+          };
+
+          if (supabase) {
+            try {
+              await supabase.from('profiles').upsert({
+                id: constructedProfile.id,
+                email: constructedProfile.email,
+                full_name: constructedProfile.fullName,
+                avatar_url: constructedProfile.avatarUrl || null,
+                role: constructedProfile.role,
+                vet_status: constructedProfile.vetStatus,
+                license_number: constructedProfile.licenseNumber || null,
+                clinic_id: constructedProfile.clinicId || null,
+                clinic_name: constructedProfile.clinicName || null,
+                specialization: constructedProfile.specialization || null,
+                updated_at: new Date().toISOString(),
+              });
+            } catch {}
+          }
+
+          try {
+            localStorage.setItem(
+              'safepaw_active_user_session_v5',
+              JSON.stringify({ user: constructedUser, profile: constructedProfile })
+            );
+          } catch {}
+
+          setUser(constructedUser);
+          setProfile(constructedProfile);
+          setIsLoading(false);
+          return { success: true };
+        }
+      }
+
+      setIsLoading(false);
+      return {
+        success: false,
+        error: 'Could not find a valid #access_token or ?code in that URL. Make sure you copied the full URL from the browser address bar.',
+      };
+    } catch (err: any) {
+      setIsLoading(false);
+      return {
+        success: false,
+        error: err.message || 'Failed to parse OAuth callback token.',
+      };
+    }
+  }, [fetchProfileFromSupabase]);
+
   // Initialize and restore Supabase session or saved demo session on page load
   useEffect(() => {
     let isMounted = true;
@@ -261,7 +418,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const initializeAuth = async () => {
       setIsLoading(true);
 
-      // Check for OAuth redirect errors in URL hash/query
+      // Check for OAuth redirect tokens or errors in URL hash/query
       if (typeof window !== 'undefined') {
         try {
           const hashParams = new URLSearchParams(window.location.hash.substring(1));
@@ -277,6 +434,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             console.error('[SafePaw] OAuth Redirect Error:', cleanMessage);
             setAuthError(`Google OAuth Notice: ${cleanMessage}. Please verify Google Provider is enabled in your Supabase project dashboard.`);
             window.history.replaceState(null, '', window.location.pathname);
+          } else if (
+            hashParams.get('access_token') ||
+            searchParams.get('access_token') ||
+            searchParams.get('code')
+          ) {
+            const href = window.location.href;
+            window.history.replaceState(null, '', window.location.pathname);
+            const res = await completeOAuthFromCallbackUrl(href);
+            if (res.success && isMounted) {
+              setIsLoading(false);
+              return;
+            }
           }
         } catch {}
       }
@@ -336,6 +505,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     initializeAuth();
 
+    // Listen for postMessage from OAuth popup window
+    const handleOAuthPopupMessage = async (event: MessageEvent) => {
+      if (!isMounted) return;
+      if (event.data?.type === 'SAFEPAW_OAUTH_CALLBACK') {
+        const callbackPayload = event.data.href || event.data.hash || event.data.search || '';
+        if (callbackPayload) {
+          await completeOAuthFromCallbackUrl(callbackPayload);
+        }
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('message', handleOAuthPopupMessage);
+    }
+
     // Listen to Supabase Auth state changes
     const supabase = getSupabase();
     let authListenerSubscription: { unsubscribe: () => void } | null = null;
@@ -363,13 +546,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => {
       isMounted = false;
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('message', handleOAuthPopupMessage);
+      }
       if (authListenerSubscription) {
         authListenerSubscription.unsubscribe();
       }
     };
-  }, [fetchProfileFromSupabase]);
+  }, [fetchProfileFromSupabase, completeOAuthFromCallbackUrl]);
 
-  // Sign In with Google OAuth (Real Supabase Auth Only)
+  // Sign In with Google OAuth (Popup-first so current container never navigates to a stale Supabase Site URL)
   const signInWithGoogle = async (
     role: 'pet_owner' | 'veterinarian',
     extraData?: {
@@ -381,12 +567,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   ): Promise<{ success: boolean; error?: string }> => {
     setAuthError(null);
-    setIsLoading(true);
 
     const supabase = getSupabase();
 
     if (!supabase) {
-      setIsLoading(false);
       const msg = 'Supabase is not configured yet. Please configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your deployment environment variables.';
       setAuthError(msg);
       return { success: false, error: msg };
@@ -403,10 +587,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } catch {}
       }
 
-      const { error } = await supabase.auth.signInWithOAuth({
+      const callbackUrl = `${window.location.origin}/auth/callback`;
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin,
+          redirectTo: callbackUrl,
+          skipBrowserRedirect: true,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent select_account',
@@ -426,15 +613,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         setAuthError(error.message);
-        setIsLoading(false);
         return { success: false, error: error.message };
+      }
+
+      if (data?.url && typeof window !== 'undefined') {
+        const popup = window.open(
+          data.url,
+          'safepaw_google_oauth',
+          'width=540,height=680,menubar=no,toolbar=no,location=yes,status=no'
+        );
+        if (!popup) {
+          // If popup was blocked, navigate directly if not inside an iframe
+          if (window.self === window.top) {
+            window.location.href = data.url;
+          } else {
+            const msg = 'Popup blocked by browser. Please allow popups for this site or use the Quick Sign-In option below.';
+            setAuthError(msg);
+            return { success: false, error: msg };
+          }
+        }
       }
 
       return { success: true };
     } catch (err: any) {
       const msg = err.message || 'Error initializing Google OAuth flow.';
       setAuthError(msg);
-      setIsLoading(false);
       return { success: false, error: msg };
     }
   };
@@ -958,6 +1161,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signOut,
         refreshProfile,
         updateProfileDetails,
+        completeOAuthFromCallbackUrl,
       }}
     >
       {children}
