@@ -89,7 +89,7 @@ export const MessagingView: React.FC = () => {
           className="self-start sm:self-auto flex items-center gap-1.5 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold shadow-xs transition cursor-pointer"
         >
           <Plus className="w-4 h-4" />
-          <span>+ Message a Clinic</span>
+          <span>Message a Clinic</span>
         </button>
       </div>
 

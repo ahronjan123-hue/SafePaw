@@ -659,6 +659,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem('safepaw_active_user_session_v5', JSON.stringify({ user: demoUser, profile: demoProfile }));
     } catch {}
 
+    // Sync profile to Supabase profiles table if Supabase is configured
+    const supabase = getSupabase();
+    if (supabase) {
+      Promise.resolve(
+        supabase.from('profiles').upsert({
+          id: demoProfile.id,
+          email: demoProfile.email,
+          full_name: demoProfile.fullName,
+          avatar_url: demoProfile.avatarUrl || null,
+          role: demoProfile.role,
+          vet_status: demoProfile.vetStatus,
+          license_number: demoProfile.licenseNumber || null,
+          clinic_id: demoProfile.clinicId || null,
+          clinic_name: demoProfile.clinicName || null,
+          specialization: demoProfile.specialization || null,
+          phone: demoProfile.phone || null,
+          bio: demoProfile.bio || null,
+          created_at: demoProfile.createdAt,
+        })
+      )
+        .then(({ error }: any) => {
+          if (error) console.warn('[SafePaw] Sync demo profile note:', error.message);
+        })
+        .catch((e: unknown) => console.warn('[SafePaw] Profile upsert error:', e));
+    }
+
     setUser(demoUser);
     setProfile(demoProfile);
     setSession(null);

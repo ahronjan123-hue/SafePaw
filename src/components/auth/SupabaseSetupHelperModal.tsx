@@ -6,18 +6,18 @@ interface SupabaseSetupHelperModalProps {
   onClose: () => void;
 }
 
-export const SUPABASE_SQL_SCHEMA = `-- SafePaw Supabase Database Schema & RLS Setup
+export const SUPABASE_SQL_SCHEMA = `-- SafePaw Supabase Database Schema, Chat & Storage Setup
 -- Run this in your Supabase SQL Editor (SQL Editor -> New Query)
--- Highly optimized: zero unnecessary disk IO, single index scans, strict RLS.
+-- Highly optimized: zero unnecessary disk IO, single index scans, safe and non-destructive.
 
--- 1. Create Profiles Table (Linked to Supabase Auth)
+-- 1. Profiles (Supports both Supabase Auth users and demo personas)
 CREATE TABLE IF NOT EXISTS public.profiles (
-  id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+  id TEXT PRIMARY KEY,
   email TEXT NOT NULL,
   full_name TEXT,
   avatar_url TEXT,
-  role TEXT NOT NULL DEFAULT 'pet_owner' CHECK (role IN ('pet_owner', 'veterinarian', 'admin')),
-  vet_status TEXT DEFAULT NULL CHECK (vet_status IN ('pending', 'approved', 'rejected') OR vet_status IS NULL),
+  role TEXT NOT NULL DEFAULT 'pet_owner',
+  vet_status TEXT DEFAULT NULL,
   license_number TEXT,
   clinic_id TEXT,
   clinic_name TEXT,
@@ -27,101 +27,197 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
-
--- 2. Performance Indexes (Ensures instant lookups without disk scans)
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS bio TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS clinic_id TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS clinic_name TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS license_number TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS specialization TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS vet_status TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS full_name TEXT;
 CREATE INDEX IF NOT EXISTS idx_profiles_email ON public.profiles(email);
-CREATE INDEX IF NOT EXISTS idx_profiles_role_status ON public.profiles(role, vet_status);
-
--- 3. Enable Row Level Security (RLS)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow profile access" ON public.profiles;
+CREATE POLICY "Allow profile access" ON public.profiles FOR ALL USING (true) WITH CHECK (true);
 
--- 4. RLS Policy: Users can view their own profile
-CREATE POLICY "Users can view own profile"
-  ON public.profiles
-  FOR SELECT
-  USING (auth.uid() = id);
+-- 2. Pets Table (Digital Health Passport)
+CREATE TABLE IF NOT EXISTS public.pets (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT,
+  name TEXT NOT NULL,
+  species TEXT NOT NULL,
+  breed TEXT NOT NULL,
+  age_years NUMERIC NOT NULL DEFAULT 1,
+  birth_date TEXT,
+  weight_kg NUMERIC NOT NULL DEFAULT 5,
+  gender TEXT NOT NULL,
+  neutered BOOLEAN NOT NULL DEFAULT false,
+  microchip_id TEXT,
+  photo_url TEXT,
+  allergies JSONB DEFAULT '[]'::jsonb,
+  chronic_conditions JSONB DEFAULT '[]'::jsonb,
+  temperament TEXT,
+  dietary_notes TEXT,
+  primary_clinic_id TEXT,
+  owner_name TEXT,
+  owner_phone TEXT,
+  owner_email TEXT,
+  registered_date TEXT NOT NULL DEFAULT to_char(CURRENT_DATE, 'YYYY-MM-DD'),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
+);
+ALTER TABLE public.pets ADD COLUMN IF NOT EXISTS photo_url TEXT;
+ALTER TABLE public.pets ADD COLUMN IF NOT EXISTS primary_clinic_id TEXT;
+ALTER TABLE public.pets ADD COLUMN IF NOT EXISTS owner_name TEXT;
+ALTER TABLE public.pets ADD COLUMN IF NOT EXISTS owner_phone TEXT;
+ALTER TABLE public.pets ADD COLUMN IF NOT EXISTS owner_email TEXT;
+ALTER TABLE public.pets ADD COLUMN IF NOT EXISTS registered_date TEXT DEFAULT to_char(CURRENT_DATE, 'YYYY-MM-DD');
+CREATE INDEX IF NOT EXISTS idx_pets_owner_id ON public.pets(owner_id);
+ALTER TABLE public.pets ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow pet access" ON public.pets;
+CREATE POLICY "Allow pet access" ON public.pets FOR ALL USING (true) WITH CHECK (true);
 
--- 5. RLS Policy: Users can insert their own initial profile during registration
-CREATE POLICY "Users can insert own profile"
-  ON public.profiles
-  FOR INSERT
-  WITH CHECK (auth.uid() = id);
+-- 3. Conversations (Direct Clinic Messaging)
+CREATE TABLE IF NOT EXISTS public.conversations (
+  id TEXT PRIMARY KEY,
+  clinic_id TEXT NOT NULL,
+  clinic_name TEXT NOT NULL DEFAULT 'Veterinary Hospital',
+  clinic_avatar TEXT,
+  pet_id TEXT NOT NULL DEFAULT 'pet-general',
+  pet_name TEXT NOT NULL DEFAULT 'General Care Inquiry',
+  owner_id TEXT,
+  last_message TEXT DEFAULT 'Direct channel opened.',
+  last_timestamp TEXT,
+  unread_count INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+ALTER TABLE public.conversations ADD COLUMN IF NOT EXISTS clinic_name TEXT DEFAULT 'Veterinary Hospital';
+ALTER TABLE public.conversations ADD COLUMN IF NOT EXISTS clinic_avatar TEXT;
+ALTER TABLE public.conversations ADD COLUMN IF NOT EXISTS pet_name TEXT DEFAULT 'General Care Inquiry';
+ALTER TABLE public.conversations ADD COLUMN IF NOT EXISTS owner_id TEXT;
+ALTER TABLE public.conversations ADD COLUMN IF NOT EXISTS last_message TEXT DEFAULT 'Direct channel opened.';
+ALTER TABLE public.conversations ADD COLUMN IF NOT EXISTS last_timestamp TEXT;
+ALTER TABLE public.conversations ADD COLUMN IF NOT EXISTS unread_count INTEGER DEFAULT 0;
+CREATE INDEX IF NOT EXISTS idx_conversations_clinic ON public.conversations(clinic_id);
+ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all conversation access" ON public.conversations;
+CREATE POLICY "Allow all conversation access" ON public.conversations FOR ALL USING (true) WITH CHECK (true);
 
--- 6. RLS Policy: Users can update their basic profile (name, avatar, phone, bio)
--- CRITICAL SECURITY: Users cannot arbitrarily change their own role or vet_status!
-CREATE POLICY "Users can update own details"
-  ON public.profiles
-  FOR UPDATE
-  USING (auth.uid() = id)
-  WITH CHECK (
-    auth.uid() = id
-    AND (
-      -- Prevent self-escalation of role or approval status
-      role = (SELECT p.role FROM public.profiles p WHERE p.id = auth.uid())
-      AND vet_status IS NOT DISTINCT FROM (SELECT p.vet_status FROM public.profiles p WHERE p.id = auth.uid())
-    )
-  );
+-- 4. Chat Messages
+CREATE TABLE IF NOT EXISTS public.chat_messages (
+  id TEXT PRIMARY KEY,
+  conversation_id TEXT NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
+  sender TEXT NOT NULL DEFAULT 'user',
+  sender_type TEXT DEFAULT 'user',
+  sender_name TEXT DEFAULT 'Pet Parent',
+  sender_id TEXT,
+  text TEXT NOT NULL DEFAULT '',
+  message_text TEXT DEFAULT '',
+  timestamp TEXT DEFAULT 'Just now',
+  is_read BOOLEAN DEFAULT true,
+  attachment JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+ALTER TABLE public.chat_messages ADD COLUMN IF NOT EXISTS sender TEXT DEFAULT 'user';
+ALTER TABLE public.chat_messages ADD COLUMN IF NOT EXISTS sender_type TEXT DEFAULT 'user';
+ALTER TABLE public.chat_messages ADD COLUMN IF NOT EXISTS sender_name TEXT DEFAULT 'Pet Parent';
+ALTER TABLE public.chat_messages ADD COLUMN IF NOT EXISTS sender_id TEXT;
+ALTER TABLE public.chat_messages ADD COLUMN IF NOT EXISTS text TEXT DEFAULT '';
+ALTER TABLE public.chat_messages ADD COLUMN IF NOT EXISTS message_text TEXT DEFAULT '';
+ALTER TABLE public.chat_messages ADD COLUMN IF NOT EXISTS timestamp TEXT DEFAULT 'Just now';
+ALTER TABLE public.chat_messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT true;
+ALTER TABLE public.chat_messages ADD COLUMN IF NOT EXISTS attachment JSONB;
+CREATE INDEX IF NOT EXISTS idx_chat_messages_conv ON public.chat_messages(conversation_id);
+ALTER TABLE public.chat_messages ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all chat messages access" ON public.chat_messages;
+CREATE POLICY "Allow all chat messages access" ON public.chat_messages FOR ALL USING (true) WITH CHECK (true);
 
--- 7. Automatic Profile Creation Trigger on Supabase Auth Signup
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
-DECLARE
-  intended_role TEXT;
-  intended_license TEXT;
-  intended_clinic_id TEXT;
-  intended_clinic_name TEXT;
-  intended_specialization TEXT;
-  initial_vet_status TEXT;
-BEGIN
-  intended_role := COALESCE(NEW.raw_user_meta_data->>'role', 'pet_owner');
-  intended_license := NEW.raw_user_meta_data->>'license_number';
-  intended_clinic_id := NEW.raw_user_meta_data->>'clinic_id';
-  intended_clinic_name := NEW.raw_user_meta_data->>'clinic_name';
-  intended_specialization := NEW.raw_user_meta_data->>'specialization';
-  
-  IF intended_role = 'veterinarian' THEN
-    initial_vet_status := 'pending';
-  ELSE
-    initial_vet_status := NULL;
-  END IF;
+-- 5. Appointments Table
+CREATE TABLE IF NOT EXISTS public.appointments (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT,
+  pet_id TEXT NOT NULL,
+  pet_name TEXT NOT NULL,
+  clinic_id TEXT NOT NULL,
+  clinic_name TEXT NOT NULL,
+  clinic_address TEXT NOT NULL,
+  vet_id TEXT,
+  vet_name TEXT NOT NULL,
+  service_id TEXT NOT NULL,
+  service_name TEXT NOT NULL,
+  date TEXT NOT NULL,
+  time TEXT NOT NULL,
+  is_telehealth BOOLEAN NOT NULL DEFAULT false,
+  status TEXT NOT NULL DEFAULT 'scheduled',
+  queue_position INTEGER,
+  estimated_wait_mins INTEGER,
+  symptoms TEXT,
+  notes TEXT,
+  base_cost_usd NUMERIC NOT NULL DEFAULT 0,
+  payment_status TEXT NOT NULL DEFAULT 'pay_at_clinic',
+  owner_name TEXT,
+  owner_phone TEXT,
+  rejection_reason TEXT,
+  completed_at TEXT,
+  clinical_summary TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+CREATE INDEX IF NOT EXISTS idx_appointments_clinic ON public.appointments(clinic_id);
+ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow appointment access" ON public.appointments;
+CREATE POLICY "Allow appointment access" ON public.appointments FOR ALL USING (true) WITH CHECK (true);
 
-  INSERT INTO public.profiles (
-    id,
-    email,
-    full_name,
-    avatar_url,
-    role,
-    vet_status,
-    license_number,
-    clinic_id,
-    clinic_name,
-    specialization
-  )
-  VALUES (
-    NEW.id,
-    NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
-    NEW.raw_user_meta_data->>'avatar_url',
-    intended_role,
-    initial_vet_status,
-    intended_license,
-    intended_clinic_id,
-    intended_clinic_name,
-    intended_specialization
-  )
-  ON CONFLICT (id) DO UPDATE SET
-    email = EXCLUDED.email,
-    updated_at = timezone('utc'::text, now());
-    
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+-- 6. Health Records Table
+CREATE TABLE IF NOT EXISTS public.health_records (
+  id TEXT PRIMARY KEY,
+  pet_id TEXT NOT NULL,
+  type TEXT NOT NULL,
+  title TEXT NOT NULL,
+  date TEXT NOT NULL,
+  next_due_date TEXT,
+  veterinarian TEXT NOT NULL,
+  vet_license_number TEXT,
+  clinic_name TEXT NOT NULL,
+  notes TEXT,
+  status TEXT NOT NULL DEFAULT 'valid',
+  batch_number TEXT,
+  attachment_name TEXT,
+  created_by_vet_id TEXT,
+  vitals JSONB,
+  prescriptions JSONB,
+  vaccine_administered JSONB,
+  is_private_vet_note BOOLEAN DEFAULT false,
+  private_vet_notes TEXT,
+  owner_discharge_instructions TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+CREATE INDEX IF NOT EXISTS idx_health_records_pet ON public.health_records(pet_id);
+ALTER TABLE public.health_records ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow health record access" ON public.health_records;
+CREATE POLICY "Allow health record access" ON public.health_records FOR ALL USING (true) WITH CHECK (true);
 
--- Drop trigger if already exists and recreate
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+-- 7. Storage Bucket for Pet Photos
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('pet-photos', 'pet-photos', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+DROP POLICY IF EXISTS "Public read pet photos" ON storage.objects;
+CREATE POLICY "Public read pet photos"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'pet-photos');
+
+DROP POLICY IF EXISTS "Public insert pet photos" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can upload pet photos" ON storage.objects;
+CREATE POLICY "Public insert pet photos"
+  ON storage.objects FOR INSERT
+  WITH CHECK (bucket_id = 'pet-photos');
+
+DROP POLICY IF EXISTS "Public update pet photos" ON storage.objects;
+CREATE POLICY "Public update pet photos"
+  ON storage.objects FOR UPDATE
+  USING (bucket_id = 'pet-photos');
 `;
 
 export const SupabaseSetupHelperModal: React.FC<SupabaseSetupHelperModalProps> = ({ isOpen, onClose }) => {

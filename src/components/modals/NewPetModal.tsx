@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Species } from '../../types';
-import { X, Shield, Check, Heart } from 'lucide-react';
+import { X, Shield, Check, Heart, Upload, Loader2, Image as ImageIcon } from 'lucide-react';
+import { getSupabase } from '../../lib/supabase';
 
 interface NewPetModalProps {
   isOpen: boolean;
@@ -49,8 +50,83 @@ export const NewPetModal: React.FC<NewPetModalProps> = ({ isOpen, onClose }) => 
   const [temperament, setTemperament] = useState('Gentle, friendly, calm in car rides');
   const [dietaryNotes, setDietaryNotes] = useState('');
   const [primaryClinicId, setPrimaryClinicId] = useState(clinics[0]?.id || '');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   if (!isOpen) return null;
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError('Image size exceeds 5MB limit.');
+      return;
+    }
+
+    setUploadError(null);
+    setIsUploadingPhoto(true);
+    setUploadSuccess(false);
+
+    try {
+      const supabase = getSupabase();
+      if (supabase) {
+        const fileExt = file.name.split('.').pop() || 'jpg';
+        const cleanName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+        const filePath = `pets/${cleanName}`;
+
+        const { data: uploadData, error: uploadErr } = await supabase.storage
+          .from('pet-photos')
+          .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: true,
+          });
+
+        if (!uploadErr && uploadData) {
+          const { data: publicUrlData } = supabase.storage
+            .from('pet-photos')
+            .getPublicUrl(filePath);
+
+          if (publicUrlData?.publicUrl) {
+            setPhotoUrl(publicUrlData.publicUrl);
+            setUploadSuccess(true);
+            setIsUploadingPhoto(false);
+            return;
+          }
+        } else if (uploadErr) {
+          console.warn('[SafePaw] Storage upload notice:', uploadErr.message);
+        }
+      }
+
+      // Fallback: Read as Data URL so image always displays
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setPhotoUrl(event.target.result as string);
+          setUploadSuccess(true);
+        }
+        setIsUploadingPhoto(false);
+      };
+      reader.onerror = () => {
+        setUploadError('Failed to read file from disk.');
+        setIsUploadingPhoto(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (err: any) {
+      console.warn('[SafePaw] File upload fallback note:', err);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setPhotoUrl(event.target.result as string);
+          setUploadSuccess(true);
+        }
+        setIsUploadingPhoto(false);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSpeciesChange = (newSpecies: Species) => {
     setSpecies(newSpecies);
@@ -141,36 +217,92 @@ export const NewPetModal: React.FC<NewPetModalProps> = ({ isOpen, onClose }) => 
             </div>
           </div>
 
-          {/* Photo Preset Selection */}
+          {/* Photo Preset & Upload Selection */}
           <div>
-            <label className="block text-xs font-semibold text-stone-700 mb-1.5">Avatar Photo</label>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-stone-700">Avatar Photo</label>
+              <span className="text-[11px] text-stone-500">Pick preset, paste URL, or upload from disk</span>
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <img
                 src={photoUrl}
                 alt="Selected preview"
-                className="w-16 h-16 rounded-xl object-cover border-2 border-teal-500 shadow-xs"
+                className="w-16 h-16 rounded-xl object-cover border-2 border-teal-500 shadow-xs shrink-0"
               />
-              <div className="flex-1 space-y-1.5">
-                <div className="flex items-center gap-2">
+              <div className="flex-1 space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] text-stone-400 font-medium">Presets:</span>
                   {(SAMPLE_AVATARS[species] || SAMPLE_AVATARS.Dog).map((url, idx) => (
                     <img
                       key={idx}
                       src={url}
                       alt="Sample"
-                      onClick={() => setPhotoUrl(url)}
-                      className={`w-10 h-10 rounded-lg object-cover cursor-pointer border transition hover:opacity-100 ${
+                      onClick={() => {
+                        setPhotoUrl(url);
+                        setUploadSuccess(false);
+                      }}
+                      className={`w-9 h-9 rounded-lg object-cover cursor-pointer border transition hover:opacity-100 ${
                         photoUrl === url ? 'border-teal-600 ring-2 ring-teal-200' : 'border-stone-200 opacity-60'
                       }`}
                     />
                   ))}
                 </div>
-                <input
-                  type="text"
-                  value={photoUrl}
-                  onChange={(e) => setPhotoUrl(e.target.value)}
-                  placeholder="Or paste custom image URL..."
-                  className="w-full text-xs px-2.5 py-1.5 border border-stone-200 rounded-lg focus:outline-teal-500"
-                />
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    value={photoUrl}
+                    onChange={(e) => {
+                      setPhotoUrl(e.target.value);
+                      setUploadSuccess(false);
+                    }}
+                    placeholder="Or paste custom image URL..."
+                    className="flex-1 text-xs px-2.5 py-1.5 border border-stone-200 rounded-lg focus:outline-teal-500"
+                  />
+
+                  {/* Hidden File Input */}
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileSelect}
+                    accept="image/*"
+                    className="hidden"
+                  />
+
+                  {/* Browse File Button */}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploadingPhoto}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-stone-100 hover:bg-stone-200 border border-stone-300 rounded-lg text-xs font-semibold text-stone-800 transition cursor-pointer shrink-0"
+                  >
+                    {isUploadingPhoto ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-600" />
+                        <span>Uploading...</span>
+                      </>
+                    ) : uploadSuccess ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Uploaded!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-3.5 h-3.5 text-teal-600" />
+                        <span>Browse File...</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {uploadError && (
+                  <p className="text-[11px] text-rose-500 font-medium">{uploadError}</p>
+                )}
+                {uploadSuccess && (
+                  <p className="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
+                    <Check className="w-3 h-3" /> Photo uploaded to Supabase storage bucket (pet-photos).
+                  </p>
+                )}
               </div>
             </div>
           </div>

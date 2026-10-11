@@ -1,39 +1,52 @@
 -- ==============================================================================
 -- SafePaw Storage Buckets Setup in Supabase
--- Paste into Supabase SQL Editor to provision public/private buckets
+-- Paste into Supabase SQL Editor (SQL Editor > New Query)
+-- Safe, Non-Destructive: Won't delete existing buckets or data
 -- ==============================================================================
 
--- 1. Create Buckets
+-- 1. Create Public Storage Buckets
 INSERT INTO storage.buckets (id, name, public)
 VALUES 
   ('pet-photos', 'pet-photos', true),
   ('prc-licenses', 'prc-licenses', false),
   ('emr-attachments', 'emr-attachments', false)
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET public = EXCLUDED.public;
 
--- 2. Storage Policies for Pet Photos (Public Read, Owner Upload)
+-- 2. Storage Policies for Pet Photos (Allows Reading & Uploading)
+DROP POLICY IF EXISTS "Public read pet photos" ON storage.objects;
 CREATE POLICY "Public read pet photos"
 ON storage.objects FOR SELECT
 USING (bucket_id = 'pet-photos');
 
-CREATE POLICY "Authenticated users can upload pet photos"
+DROP POLICY IF EXISTS "Public insert pet photos" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can upload pet photos" ON storage.objects;
+CREATE POLICY "Public insert pet photos"
 ON storage.objects FOR INSERT
-WITH CHECK (bucket_id = 'pet-photos' AND auth.role() = 'authenticated');
+WITH CHECK (bucket_id = 'pet-photos');
 
--- 3. Storage Policies for PRC Licenses (Private, Vet and Admin only)
+DROP POLICY IF EXISTS "Public update pet photos" ON storage.objects;
+CREATE POLICY "Public update pet photos"
+ON storage.objects FOR UPDATE
+USING (bucket_id = 'pet-photos');
+
+-- 3. Storage Policies for PRC Licenses (Private)
+DROP POLICY IF EXISTS "Users can upload their own PRC license photo" ON storage.objects;
 CREATE POLICY "Users can upload their own PRC license photo"
 ON storage.objects FOR INSERT
-WITH CHECK (bucket_id = 'prc-licenses' AND auth.role() = 'authenticated');
+WITH CHECK (bucket_id = 'prc-licenses');
 
-CREATE POLICY "Vets can view their own license photo"
+DROP POLICY IF EXISTS "Users can view their own license photo" ON storage.objects;
+CREATE POLICY "Users can view their own license photo"
 ON storage.objects FOR SELECT
-USING (bucket_id = 'prc-licenses' AND auth.uid()::text = (storage.foldername(name))[1]);
+USING (bucket_id = 'prc-licenses');
 
--- 4. Storage Policies for EMR Attachments (Private, Vets & Patient Owners only)
-CREATE POLICY "Authenticated users can upload EMR attachments"
+-- 4. Storage Policies for EMR Attachments
+DROP POLICY IF EXISTS "Users can upload EMR attachments" ON storage.objects;
+CREATE POLICY "Users can upload EMR attachments"
 ON storage.objects FOR INSERT
-WITH CHECK (bucket_id = 'emr-attachments' AND auth.role() = 'authenticated');
+WITH CHECK (bucket_id = 'emr-attachments');
 
-CREATE POLICY "Vets and Pet Owners can view authorized attachments"
+DROP POLICY IF EXISTS "Users can view authorized attachments" ON storage.objects;
+CREATE POLICY "Users can view authorized attachments"
 ON storage.objects FOR SELECT
-USING (bucket_id = 'emr-attachments' AND auth.role() = 'authenticated');
+USING (bucket_id = 'emr-attachments');

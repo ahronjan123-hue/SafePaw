@@ -289,7 +289,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-dashed border-teal-600/60 text-teal-300 hover:bg-teal-950/60 text-xs font-semibold transition shrink-0 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>+ Register Another Pet</span>
+                <span>Register Another Pet</span>
               </button>
             </div>
           </div>
@@ -323,7 +323,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 className="inline-flex items-center gap-2 px-6 py-3.5 rounded-2xl bg-teal-500 hover:bg-teal-400 text-stone-950 font-bold text-sm transition shadow-lg cursor-pointer"
               >
                 <Plus className="w-5 h-5" />
-                <span>+ Register Your First Pet</span>
+                <span>Register Your First Pet</span>
               </button>
             </div>
           </div>
