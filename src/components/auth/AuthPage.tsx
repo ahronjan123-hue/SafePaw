@@ -6,6 +6,10 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
+  Key,
+  Database,
+  X,
+  Check,
   FileText,
   Shield,
   Calendar,
@@ -29,6 +33,36 @@ export const AuthPage: React.FC = () => {
   const [authMethod, setAuthMethod] = useState<'google' | 'email'>('google');
   const [isSigningUp, setIsSigningUp] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // In-app Supabase Configuration State
+  const [configModalOpen, setConfigModalOpen] = useState(false);
+  const [inputSupabaseUrl, setInputSupabaseUrl] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('safepaw_config_VITE_SUPABASE_URL') || (import.meta.env.VITE_SUPABASE_URL || '');
+    }
+    return '';
+  });
+  const [inputAnonKey, setInputAnonKey] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('safepaw_config_VITE_SUPABASE_ANON_KEY') || (import.meta.env.VITE_SUPABASE_ANON_KEY || '');
+    }
+    return '';
+  });
+  const [configSaved, setConfigSaved] = useState(false);
+
+  const handleSaveConfig = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (inputSupabaseUrl.trim()) {
+      localStorage.setItem('safepaw_config_VITE_SUPABASE_URL', inputSupabaseUrl.trim());
+    }
+    if (inputAnonKey.trim()) {
+      localStorage.setItem('safepaw_config_VITE_SUPABASE_ANON_KEY', inputAnonKey.trim());
+    }
+    setConfigSaved(true);
+    setTimeout(() => {
+      window.location.reload();
+    }, 600);
+  };
 
   // Email form state
   const [email, setEmail] = useState('');
@@ -147,6 +181,20 @@ export const AuthPage: React.FC = () => {
                 PH National Veterinary Health
               </span>
             </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setConfigModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white text-xs font-semibold border border-stone-700 transition cursor-pointer"
+              title="Configure Supabase Project Credentials"
+            >
+              <Key className="w-3.5 h-3.5 text-teal-400" />
+              <span>Supabase Keys</span>
+              {!isConfigured && (
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+              )}
+            </button>
           </div>
         </div>
       </header>
@@ -437,6 +485,90 @@ export const AuthPage: React.FC = () => {
           </div>
         </div>
       </footer>
+
+      {/* Supabase Key Setup Modal */}
+      {configModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/80 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-stone-900 border border-stone-800 rounded-3xl max-w-md w-full p-6 text-stone-100 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-stone-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-teal-600 text-white flex items-center justify-center font-bold">
+                  <Key className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Supabase Configuration</h3>
+                  <p className="text-[11px] text-stone-400">Public environment variables for authentication</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setConfigModalOpen(false)}
+                className="p-1.5 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-stone-300 leading-relaxed">
+              Enter your Supabase project credentials. These are safe public client keys (<code className="text-teal-400">anon</code> key only; never enter service_role key).
+            </p>
+
+            <form onSubmit={handleSaveConfig} className="space-y-3.5">
+              <div>
+                <label className="block text-[11px] font-bold text-stone-400 uppercase tracking-wider mb-1">
+                  VITE_SUPABASE_URL:
+                </label>
+                <input
+                  type="url"
+                  required
+                  value={inputSupabaseUrl}
+                  onChange={(e) => setInputSupabaseUrl(e.target.value)}
+                  placeholder="https://your-project-id.supabase.co"
+                  className="w-full bg-stone-950 border border-stone-700 rounded-xl px-3 py-2 text-stone-100 font-mono text-xs focus:outline-hidden focus:border-teal-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-stone-400 uppercase tracking-wider mb-1">
+                  VITE_SUPABASE_ANON_KEY:
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  value={inputAnonKey}
+                  onChange={(e) => setInputAnonKey(e.target.value)}
+                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  className="w-full bg-stone-950 border border-stone-700 rounded-xl px-3 py-2 text-stone-100 font-mono text-xs focus:outline-hidden focus:border-teal-500 resize-none"
+                />
+              </div>
+
+              {configSaved && (
+                <div className="p-2.5 rounded-xl bg-emerald-950/80 border border-emerald-800 text-emerald-200 text-xs flex items-center gap-2">
+                  <Check className="w-4 h-4 text-emerald-400" />
+                  <span>Credentials saved! Reloading application...</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setConfigModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-stone-400 hover:text-white transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-stone-950 font-bold text-xs rounded-xl transition shadow-md cursor-pointer flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Save & Connect</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

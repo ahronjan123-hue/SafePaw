@@ -161,18 +161,35 @@ export const deduplicateById = <T extends { id: string }>(items: T[]): T[] => {
 };
 
 const STORAGE_KEYS = {
-  ROLE: 'safepaw_role_v3',
-  ACTIVE_VET: 'safepaw_active_vet_v3',
-  PETS: 'safepaw_pets_v3',
-  SELECTED_PET_ID: 'safepaw_selected_pet_v3',
-  APPOINTMENTS: 'safepaw_appointments_v3',
-  HEALTH_RECORDS: 'safepaw_records_v3',
-  CONVERSATIONS: 'safepaw_conversations_v3',
-  NOTIFICATIONS: 'safepaw_notifications_v3',
-  LOST_PETS: 'safepaw_lost_pets_v3',
-  OFFLINE_QUEUE: 'safepaw_offline_queue_v3',
-  LOCATION_SETTINGS: 'safepaw_location_settings_v3',
+  ROLE: 'safepaw_role_v5_live',
+  ACTIVE_VET: 'safepaw_active_vet_v5_live',
+  PETS: 'safepaw_pets_v5_live',
+  SELECTED_PET_ID: 'safepaw_selected_pet_v5_live',
+  APPOINTMENTS: 'safepaw_appointments_v5_live',
+  HEALTH_RECORDS: 'safepaw_records_v5_live',
+  CONVERSATIONS: 'safepaw_conversations_v5_live',
+  NOTIFICATIONS: 'safepaw_notifications_v5_live',
+  LOST_PETS: 'safepaw_lost_pets_v5_live',
+  OFFLINE_QUEUE: 'safepaw_offline_queue_v5_live',
+  LOCATION_SETTINGS: 'safepaw_location_settings_v5_live',
 };
+
+// One-time purge of legacy demo cache
+if (typeof window !== 'undefined') {
+  try {
+    const legacyKeys = [
+      'safepaw_pets_v3',
+      'safepaw_selected_pet_v3',
+      'safepaw_appointments_v3',
+      'safepaw_records_v3',
+      'safepaw_conversations_v3',
+      'safepaw_notifications_v3',
+      'safepaw_lost_pets_v3',
+      'safepaw_active_vet_v3',
+    ];
+    legacyKeys.forEach((k) => localStorage.removeItem(k));
+  } catch {}
+}
 
 const DEFAULT_LOCATION_SETTINGS: LocationSettings = {
   detectedCountryCode: 'PH',
@@ -207,9 +224,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.ACTIVE_VET);
       if (saved) return JSON.parse(saved);
-      return INITIAL_VETS[0]; // Default to Dr. Elena Ramos
+      return INITIAL_VETS[0] || null;
     } catch {
-      return INITIAL_VETS[0];
+      return INITIAL_VETS[0] || null;
     }
   });
 
@@ -266,9 +283,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [selectedPetId, setSelectedPetId] = useState<string>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.SELECTED_PET_ID);
-      return saved || INITIAL_PETS[0].id;
+      return saved || (INITIAL_PETS[0]?.id || '');
     } catch {
-      return INITIAL_PETS[0].id;
+      return INITIAL_PETS[0]?.id || '';
     }
   });
 
@@ -675,7 +692,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Pet management
-  const selectedPet = pets.find((p) => p.id === selectedPetId) || pets[0];
+  const selectedPet = pets.find((p) => p.id === selectedPetId) || pets[0] || undefined;
 
   const addPet = (petData: Omit<Pet, 'id' | 'registeredDate'>) => {
     const newPet: Pet = {
@@ -1343,64 +1360,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ]);
     }
 
-    // If user is owner sending to clinic, simulate response
-    if (currentRole === 'pet_owner' && isOnline) {
-      setTimeout(() => {
-        const autoReplies = [
-          'Thank you for reaching out! A veterinary staff member has received your note and will review it shortly.',
-          `Understood. If this is an acute emergency, please call our 24/7 hotline (${currentCountry.emergencyHotline}) directly or proceed to our triage room.`,
-          "Got it! We have attached this note to your pet's digital health passport.",
-        ];
-        const randomReply = autoReplies[Math.floor(Math.random() * autoReplies.length)];
-        setConversations((current) =>
-          current.map((c) => {
-            if (c.id === conversationId) {
-              const clinicMsg: ChatMessage = {
-                id: generateId('msg'),
-                sender: 'clinic',
-                text: randomReply,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              };
-              return {
-                ...c,
-                lastMessage: clinicMsg.text,
-                lastTimestamp: 'Just now',
-                unreadCount: c.unreadCount + 1,
-                messages: deduplicateById([...c.messages, clinicMsg]),
-              };
-            }
-            return c;
-          })
-        );
-      }, 1500);
-    }
+    // Realtime direct messaging: No auto-replies or simulated bot answers.
+    // When messages are sent by the pet owner or attending veterinarian, they are logged cleanly in real time.
   };
 
-  const startOrGetConversationWithClinic = (clinicId: string, petId: string): string => {
-    const existing = conversations.find((c) => c.clinicId === clinicId && c.petId === petId);
-    if (existing) return existing.id;
-
+  const startOrGetConversationWithClinic = (clinicId: string, petId?: string): string => {
     const clinic = clinics.find((cl) => cl.id === clinicId) || clinics[0];
-    const pet = pets.find((p) => p.id === petId) || pets[0];
+    const pet = pets.find((p) => p.id === petId) || pets[0] || null;
+    const targetPetId = pet ? pet.id : 'general';
+    const targetPetName = pet ? pet.name : 'General Care Inquiry';
+
+    const existing = conversations.find((c) => c.clinicId === clinic.id && c.petId === targetPetId);
+    if (existing) return existing.id;
 
     const newConv: Conversation = {
       id: generateId('conv'),
       clinicId: clinic.id,
       clinicName: clinic.name,
       clinicAvatar: clinic.image,
-      petId: pet.id,
-      petName: pet.name,
-      lastMessage: 'Conversation opened. You can send questions, photos, or request advice.',
+      petId: targetPetId,
+      petName: targetPetName,
+      lastMessage: 'Direct communication channel opened.',
       lastTimestamp: 'Just now',
       unreadCount: 0,
-      messages: [
-        {
-          id: generateId('msg'),
-          sender: 'clinic',
-          text: `Welcome to ${clinic.name} direct chat portal! How can we assist ${pet.name} today?`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        },
-      ],
+      messages: [],
     };
     setConversations((prev) => deduplicateById([newConv, ...prev]));
     return newConv.id;

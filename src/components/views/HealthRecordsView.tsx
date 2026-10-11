@@ -86,63 +86,70 @@ export const HealthRecordsView: React.FC<HealthRecordsViewProps> = ({
       </div>
 
       {/* Patient Health Summary Card */}
-      <div className="bg-white p-6 rounded-2xl border border-stone-200 shadow-xs">
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-          <div className="sm:border-r border-stone-100 sm:pr-4">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-stone-400 block">
-              Patient Identification
-            </span>
-            <div className="text-sm font-bold text-stone-900 mt-0.5">{selectedPet?.name}</div>
-            <div className="text-xs text-stone-500">{selectedPet?.breed} · {selectedPet?.gender}</div>
-            <button
-              onClick={handleCopyChip}
-              className="mt-2 flex items-center gap-1 text-[11px] font-mono text-teal-800 hover:text-teal-900 bg-teal-50 px-2 py-0.5 rounded"
-            >
-              <span>Chip: {selectedPet?.microchipId}</span>
-              {copiedChip ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-            </button>
-          </div>
-          <div className="sm:border-r border-stone-100 sm:pr-4">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-stone-400 block">
-              Weight & Vitals
-            </span>
-            <div className="text-base font-bold text-stone-900 mt-0.5">
-              {selectedPet?.weightKg} {locationSettings.weightUnit}
+      {selectedPet ? (
+        <div className="bg-white p-6 rounded-2xl border border-stone-200 shadow-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div className="sm:border-r border-stone-100 sm:pr-4">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-stone-400 block">
+                Patient Identification
+              </span>
+              <div className="text-sm font-bold text-stone-900 mt-0.5">{selectedPet.name}</div>
+              <div className="text-xs text-stone-500">{selectedPet.breed} · {selectedPet.gender}</div>
+              <button
+                onClick={handleCopyChip}
+                className="mt-2 flex items-center gap-1 text-[11px] font-mono text-teal-800 hover:text-teal-900 bg-teal-50 px-2 py-0.5 rounded cursor-pointer"
+              >
+                <span>Chip: {selectedPet.microchipId || 'Pending'}</span>
+                {copiedChip ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+              </button>
             </div>
-            <div className="text-xs text-emerald-600 font-medium">Optimal Health Range</div>
-            <div className="text-[10px] text-stone-400 mt-1">Verified via microchip</div>
-          </div>
-          <div className="sm:border-r border-stone-100 sm:pr-4">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-stone-400 block">
-              Immunization Status
-            </span>
-            <div className="text-base font-bold text-stone-900 mt-0.5">{vaccinesCount} Logged</div>
-            {dueSoonCount > 0 ? (
-              <div className="text-xs font-semibold text-amber-700 flex items-center gap-1">
-                <AlertTriangle className="w-3 h-3" />
-                <span>{dueSoonCount} booster due soon</span>
+            <div className="sm:border-r border-stone-100 sm:pr-4">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-stone-400 block">
+                Weight & Vitals
+              </span>
+              <div className="text-base font-bold text-stone-900 mt-0.5">
+                {selectedPet.weightKg} {locationSettings.weightUnit}
               </div>
-            ) : (
-              <div className="text-xs font-semibold text-emerald-700 flex items-center gap-1">
-                <CheckCircle className="w-3 h-3" />
-                <span>All vaccines up to date</span>
-              </div>
-            )}
-            <div className="text-[10px] text-stone-400 mt-1">{currentCountry.name} Standard</div>
-          </div>
-          <div>
-            <span className="text-[10px] uppercase font-bold tracking-wider text-stone-400 block">
-              Allergies & Dietary
-            </span>
-            <div className="text-xs font-medium text-rose-700 mt-0.5">
-              {selectedPet?.allergies.join(', ') || 'None reported'}
+              <div className="text-xs text-emerald-600 font-medium">Recorded Clinical Weight</div>
+              <div className="text-[10px] text-stone-400 mt-1">Verified via microchip</div>
             </div>
-            <div className="text-[11px] text-stone-500 mt-1 line-clamp-2">
-              {selectedPet?.dietaryNotes}
+            <div className="sm:border-r border-stone-100 sm:pr-4">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-stone-400 block">
+                Immunization Status
+              </span>
+              <div className="text-base font-bold text-stone-900 mt-0.5">{vaccinesCount} Logged</div>
+              {dueSoonCount > 0 ? (
+                <div className="text-xs font-semibold text-amber-700 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" />
+                  <span>{dueSoonCount} booster due soon</span>
+                </div>
+              ) : (
+                <div className="text-xs font-semibold text-emerald-700 flex items-center gap-1">
+                  <CheckCircle className="w-3 h-3" />
+                  <span>All vaccines up to date</span>
+                </div>
+              )}
+              <div className="text-[10px] text-stone-400 mt-1">{currentCountry.name} Standard</div>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold tracking-wider text-stone-400 block">
+                Allergies & Dietary
+              </span>
+              <div className="text-xs font-medium text-rose-700 mt-0.5">
+                {selectedPet.allergies?.join(', ') || 'None reported'}
+              </div>
+              <div className="text-[11px] text-stone-500 mt-1 line-clamp-2">
+                {selectedPet.dietaryNotes || 'Standard balanced diet'}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="bg-white p-6 rounded-2xl border border-stone-200 shadow-xs text-center space-y-2">
+          <p className="text-sm font-semibold text-stone-800">No Patient Selected</p>
+          <p className="text-xs text-stone-500">Add or register a pet companion to view their immunization ledger and passport.</p>
+        </div>
+      )}
 
       {/* Record Category Filter Tabs */}
       <div className="flex items-center gap-2 border-b border-stone-200 pb-2 overflow-x-auto text-xs">

@@ -280,34 +280,53 @@ export const BookingView: React.FC = () => {
           {/* Patient Pet Select */}
           <div>
             <label className="block text-xs font-semibold text-stone-700 mb-2">Patient Pet</label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {pets.map((p) => {
-                const isSelected = p.id === selectedPet;
-                return (
-                  <div
-                    key={p.id}
-                    onClick={() => setSelectedPet(p.id)}
-                    className={`p-3 rounded-xl border cursor-pointer transition flex items-center gap-3 ${
-                      isSelected
-                        ? 'border-teal-600 bg-teal-50 text-teal-900 font-semibold shadow-xs'
-                        : 'border-stone-200 hover:bg-stone-50 text-stone-700'
-                    }`}
-                  >
-                    <img
-                      src={p.photoUrl}
-                      alt={p.name}
-                      className="w-10 h-10 rounded-full object-cover shrink-0"
-                    />
-                    <div className="text-xs">
-                      <div className="font-bold">{p.name}</div>
-                      <div className="text-[10px] text-stone-500 font-normal">
-                        {p.breed} · {p.weightKg} {locationSettings.weightUnit}
+            {pets.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {pets.map((p) => {
+                  const isSelected = p.id === selectedPet;
+                  return (
+                    <div
+                      key={p.id}
+                      onClick={() => setSelectedPet(p.id)}
+                      className={`p-3 rounded-xl border cursor-pointer transition flex items-center gap-3 ${
+                        isSelected
+                          ? 'border-teal-600 bg-teal-50 text-teal-900 font-semibold shadow-xs'
+                          : 'border-stone-200 hover:bg-stone-50 text-stone-700'
+                      }`}
+                    >
+                      {p.photoUrl ? (
+                        <img
+                          src={p.photoUrl}
+                          alt={p.name}
+                          className="w-10 h-10 rounded-full object-cover shrink-0"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center shrink-0">
+                          {p.name.charAt(0)}
+                        </div>
+                      )}
+                      <div className="text-xs">
+                        <div className="font-bold">{p.name}</div>
+                        <div className="text-[10px] text-stone-500 font-normal">
+                          {p.breed} · {p.weightKg} {locationSettings.weightUnit}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <span>No registered pets found. Please register your pet first to book with this hospital.</span>
+                <button
+                  type="button"
+                  onClick={() => setCurrentTab('dashboard')}
+                  className="px-3.5 py-1.5 bg-teal-600 text-white font-semibold rounded-lg text-xs hover:bg-teal-700 transition cursor-pointer self-start sm:self-auto"
+                >
+                  + Register Pet
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Clinical Service Selection with Localized Prices */}

@@ -1,15 +1,26 @@
 import { createClient, SupabaseClient, User, Session } from '@supabase/supabase-js';
 
-// Read Vite client environment variables safely
-const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
-const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
+// Read Vite client environment variables safely with runtime fallback
+const getClientEnv = (key: string): string => {
+  if (typeof window !== 'undefined') {
+    const local = localStorage.getItem(`safepaw_config_${key}`);
+    if (local && local.trim()) return local.trim();
+    const winVal = (window as any)?.__ENV__?.[key];
+    if (winVal && typeof winVal === 'string') return winVal.trim();
+  }
+  return ((import.meta.env[key] as string) || '').trim();
+};
+
+const supabaseUrl = getClientEnv('VITE_SUPABASE_URL');
+const supabaseAnonKey = getClientEnv('VITE_SUPABASE_ANON_KEY');
 
 export const isSupabaseConfigured = (): boolean => {
   return Boolean(
     supabaseUrl &&
     supabaseAnonKey &&
     supabaseUrl.startsWith('https://') &&
-    !supabaseUrl.includes('placeholder')
+    !supabaseUrl.includes('placeholder') &&
+    !supabaseUrl.includes('your-project-ref')
   );
 };
 
