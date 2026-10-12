@@ -840,9 +840,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let demoProfile: UserProfile;
 
     if (role === 'service_provider' || role === 'veterinarian') {
-      const matchedVet = INITIAL_VETS.find((v) => v.id === vetId) || INITIAL_VETS[0];
+      const defaultVetFallback = {
+        id: vetId || '00000000-0000-0000-0000-000000000002',
+        name: 'Dr. Jan Ahron Apilado, DVM',
+        email: 'janahrqn@gmail.com',
+        phone: '+639178349210',
+        title: 'Attending Clinical Veterinarian',
+        licenseNumber: 'PRC-VET-0049821',
+        clinicId: '00000000-0000-0000-0000-000000000001',
+        clinicName: 'Vets in Practice Animal Hospital (VIP)',
+        specialization: 'Clinical Veterinary Medicine',
+        avatar: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=300&q=80',
+        consultationFeeUSD: 14,
+        availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+        availableTimeSlots: ['08:30 AM', '09:15 AM', '10:00 AM', '11:00 AM', '01:30 PM', '02:30 PM'],
+        bio: 'Board-certified clinical veterinarian specializing in preventive medicine and small animal surgery.',
+        approvalStatus: 'approved' as const,
+        createdAt: new Date().toISOString(),
+      };
+
+      const matchedVet = (INITIAL_VETS.length > 0 ? (INITIAL_VETS.find((v) => v.id === vetId) || INITIAL_VETS[0]) : null) || defaultVetFallback;
       const providerBusinessNames: Record<string, string> = {
-        veterinary_clinic: 'Greenwood Animal Hospital & Wellness Center',
+        veterinary_clinic: 'Vets in Practice Animal Hospital (VIP)',
         grooming_salon: 'Paws & Bubbles Pet Grooming Salon',
         rescue_shelter: 'PawHaven Animal Rescue Alliance',
         animal_shelter: 'Metro Manila Municipal Animal Care Shelter',
@@ -852,7 +871,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       demoUser = {
         id: matchedVet.id,
         app_metadata: { provider: 'google', providers: ['google'] },
-        user_metadata: { full_name: matchedVet.name, role: 'service_provider', provider_type: providerType },
+        user_metadata: { full_name: matchedVet.name, role: role === 'veterinarian' ? 'veterinarian' : 'service_provider', provider_type: providerType },
         aud: 'authenticated',
         created_at: new Date().toISOString(),
         email: matchedVet.email,
@@ -866,7 +885,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: matchedVet.email,
         fullName: matchedVet.name,
         avatarUrl: matchedVet.avatar,
-        role: 'service_provider',
+        role: role === 'veterinarian' ? 'veterinarian' : 'service_provider',
         providerType: providerType,
         businessName: businessName,
         isVerified: true,
@@ -882,7 +901,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       try {
         localStorage.setItem('safepaw_active_vet_v3', JSON.stringify(matchedVet));
-        localStorage.setItem('safepaw_role_v3', 'service_provider');
+        localStorage.setItem('safepaw_role_v3', role === 'veterinarian' ? 'veterinarian' : 'service_provider');
         localStorage.setItem('safepaw_provider_type', providerType);
       } catch {}
     } else if (role === 'pending_vet') {
@@ -918,14 +937,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch {}
     } else {
       // Pet Owner
-      const petOwnerId = 'owner-demo-1';
+      const petOwnerId = '00000000-0000-0000-0000-000000000003';
       demoUser = {
         id: petOwnerId,
         app_metadata: { provider: 'google', providers: ['google'] },
         user_metadata: { full_name: 'Maria Santos', role: 'pet_owner' },
         aud: 'authenticated',
         created_at: new Date().toISOString(),
-        email: 'maria.santos@gmail.ph',
+        email: 'maria.santos@safepaw.ph',
         phone: '+639178889999',
         role: 'authenticated',
         updated_at: new Date().toISOString(),
@@ -933,7 +952,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       demoProfile = {
         id: petOwnerId,
-        email: 'maria.santos@gmail.ph',
+        email: 'maria.santos@safepaw.ph',
         fullName: 'Maria Santos',
         avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
         role: 'pet_owner',
