@@ -26,7 +26,16 @@ export interface Pet {
 export interface ClinicService {
   id: string;
   name: string;
-  category: 'Wellness' | 'Vaccination' | 'Dental' | 'Surgery' | 'Emergency' | 'Grooming' | 'Telehealth';
+  category:
+    | 'Wellness'
+    | 'Vaccination'
+    | 'Dental'
+    | 'Surgery'
+    | 'Emergency'
+    | 'Grooming'
+    | 'Telehealth'
+    | 'Rescue & Adoption'
+    | 'Shelter Care';
   basePriceUSD: number;
   durationMinutes: number;
   description: string;
@@ -47,9 +56,12 @@ export interface Veterinarian {
   bio?: string;
   phone?: string;
   email?: string;
+  providerCategory?: ServiceProviderCategory;
 }
 
-export type ProviderType = 'clinic' | 'hospital_247' | 'groomer' | 'boarding' | 'shelter';
+export type ProviderType = 'clinic' | 'hospital_247' | 'groomer' | 'salon' | 'boarding' | 'shelter';
+
+export type ServiceProviderCategory = 'salon' | 'clinic' | 'shelter';
 
 export interface Clinic {
   id: string;
@@ -267,6 +279,7 @@ export interface VetUserSession {
   licenseNumber: string;
   clinicId: string;
   clinicName: string;
+  providerCategory?: ServiceProviderCategory;
   specialization: string;
   avatar: string;
   consultationFeeUSD: number;
