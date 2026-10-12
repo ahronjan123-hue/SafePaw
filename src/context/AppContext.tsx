@@ -1195,7 +1195,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const supabase = getSupabase();
     if (supabase && isOnline) {
       Promise.resolve(
-        supabase.from('appointments').update({ date: newDate, time: newTime, status: 'scheduled' }).eq('id', id)
+        supabase.from('appointments').update({ appointment_date: newDate, appointment_time: newTime, status: 'scheduled' }).eq('id', id)
       )
         .then(() => {})
         .catch((err: unknown) => console.warn('Supabase reschedule error:', err));
@@ -1286,23 +1286,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           .upsert({
             id: newRecord.id,
             pet_id: newRecord.petId,
-            type: newRecord.type,
+            record_type: newRecord.type,
             title: newRecord.title,
-            date: newRecord.date,
-            next_due_date: newRecord.nextDueDate,
-            veterinarian: newRecord.veterinarian,
-            vet_license_number: newRecord.vetLicenseNumber,
-            clinic_name: newRecord.clinicName,
-            notes: newRecord.notes,
-            status: newRecord.status,
-            batch_number: newRecord.batchNumber,
-            attachment_name: newRecord.attachmentName,
-            created_by_vet_id: newRecord.createdByVetId,
-            vitals: newRecord.vitals,
-            prescriptions: newRecord.prescriptions,
-            is_private_vet_note: newRecord.isPrivateVetNote,
-            private_vet_notes: newRecord.privateVetNotes,
-            owner_discharge_instructions: newRecord.ownerDischargeInstructions,
+            record_date: newRecord.date,
+            next_due_date: newRecord.nextDueDate || null,
+            veterinarian_name: newRecord.veterinarian || 'Dr. Attending Veterinarian',
+            vet_license_number: newRecord.vetLicenseNumber || 'PRC-VET-VERIFIED',
+            clinic_name: newRecord.clinicName || 'SafePaw Partner Hospital',
+            status: newRecord.status || 'completed',
+            batch_number: newRecord.batchNumber || null,
+            attachment_url: newRecord.attachmentName || null,
+            created_by_vet_id: newRecord.createdByVetId || null,
+            vitals: newRecord.vitals || {},
+            diagnosis: newRecord.notes || '',
+            prescriptions: newRecord.prescriptions || [],
+            is_private_vet_note: Boolean(newRecord.isPrivateVetNote),
+            private_vet_notes: newRecord.privateVetNotes || null,
+            owner_discharge_instructions: newRecord.ownerDischargeInstructions || null,
           })
       )
         .then(() => {})
@@ -1410,22 +1410,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             .upsert({
               id: r.id,
               pet_id: r.petId,
-              type: r.type,
+              record_type: r.type,
               title: r.title,
-              date: r.date,
-              next_due_date: r.nextDueDate,
-              veterinarian: r.veterinarian,
-              vet_license_number: r.vetLicenseNumber,
-              clinic_name: r.clinicName,
-              notes: r.notes,
-              status: r.status,
-              batch_number: r.batchNumber,
-              created_by_vet_id: r.createdByVetId,
-              vitals: r.vitals,
-              prescriptions: r.prescriptions,
-              is_private_vet_note: r.isPrivateVetNote,
-              private_vet_notes: r.privateVetNotes,
-              owner_discharge_instructions: r.ownerDischargeInstructions,
+              record_date: r.date,
+              next_due_date: r.nextDueDate || null,
+              veterinarian_name: r.veterinarian || 'Dr. Attending Veterinarian',
+              vet_license_number: r.vetLicenseNumber || 'PRC-VET-VERIFIED',
+              clinic_name: r.clinicName || 'SafePaw Partner Hospital',
+              status: r.status || 'completed',
+              batch_number: r.batchNumber || null,
+              attachment_url: r.attachmentName || null,
+              created_by_vet_id: r.createdByVetId || null,
+              vitals: r.vitals || {},
+              diagnosis: r.notes || '',
+              prescriptions: r.prescriptions || [],
+              is_private_vet_note: Boolean(r.isPrivateVetNote),
+              private_vet_notes: r.privateVetNotes || null,
+              owner_discharge_instructions: r.ownerDischargeInstructions || null,
             })
         )
           .then(() => {})
@@ -1649,6 +1650,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       dateReported: new Date().toISOString().split('T')[0],
     };
     setLostPets((prev) => deduplicateById([newReport, ...prev]));
+
+    const supabase = getSupabase();
+    if (supabase && isOnline) {
+      Promise.resolve(
+        supabase.from('lost_pets').upsert({
+          id: newReport.id,
+          pet_name: newReport.petName,
+          species: newReport.species,
+          breed: newReport.breed,
+          last_seen_location: newReport.lastSeenLocation,
+          city: newReport.city,
+          country_code: newReport.countryCode || 'PH',
+          date_reported: newReport.dateReported,
+          status: newReport.status || 'lost',
+          contact_phone: newReport.contactPhone,
+          description: newReport.description,
+          photo_url: newReport.photoUrl,
+          microchip_number: newReport.microchipNumber || null,
+          reward_usd: newReport.baseRewardUSD ? Number(newReport.baseRewardUSD) : null,
+        })
+      )
+        .then(() => {})
+        .catch((err: unknown) => console.warn('Supabase lost pet write note:', err));
+    }
 
     if (!isOnline) {
       setSyncQueue((prev) => [

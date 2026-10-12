@@ -4,11 +4,12 @@ import { createClient, SupabaseClient, User, Session } from '@supabase/supabase-
 const getClientEnv = (key: string): string => {
   if (typeof window !== 'undefined') {
     const local = localStorage.getItem(`safepaw_config_${key}`);
-    if (local && local.trim()) return local.trim();
+    if (local && local.trim() && (key !== 'VITE_SUPABASE_ANON_KEY' || local.includes('.'))) return local.trim();
     const winVal = (window as any)?.__ENV__?.[key];
-    if (winVal && typeof winVal === 'string') return winVal.trim();
+    if (winVal && typeof winVal === 'string' && (key !== 'VITE_SUPABASE_ANON_KEY' || winVal.includes('.'))) return winVal.trim();
   }
-  return ((import.meta.env[key] as string) || '').trim();
+  const metaVal = ((import.meta.env[key] as string) || '').trim();
+  return metaVal;
 };
 
 const supabaseUrl = getClientEnv('VITE_SUPABASE_URL');
@@ -20,7 +21,8 @@ export const isSupabaseConfigured = (): boolean => {
     supabaseAnonKey &&
     supabaseUrl.startsWith('https://') &&
     !supabaseUrl.includes('placeholder') &&
-    !supabaseUrl.includes('your-project-ref')
+    !supabaseUrl.includes('your-project-ref') &&
+    supabaseAnonKey.length > 20
   );
 };
 
@@ -46,12 +48,17 @@ export const getSupabase = (): SupabaseClient | null => {
   return supabaseInstance;
 };
 
+export type ProviderServiceType = 'veterinary_clinic' | 'grooming_salon' | 'rescue_shelter' | 'animal_shelter';
+
 export interface UserProfile {
   id: string;
   email: string;
   fullName: string;
   avatarUrl?: string;
-  role: 'pet_owner' | 'veterinarian' | 'admin';
+  role: 'pet_owner' | 'service_provider' | 'veterinarian' | 'admin';
+  providerType?: ProviderServiceType;
+  businessName?: string;
+  isVerified?: boolean;
   vetStatus: 'pending' | 'approved' | 'rejected' | null;
   licenseNumber?: string;
   clinicId?: string;

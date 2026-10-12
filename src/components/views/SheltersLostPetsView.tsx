@@ -22,6 +22,7 @@ export const SheltersLostPetsView: React.FC<SheltersLostPetsViewProps> = ({
   const [radarFilter, setRadarFilter] = useState<'all' | 'lost' | 'reunited'>('all');
   const [microchipSearch, setMicrochipSearch] = useState('');
   const [microchipSearchResult, setMicrochipSearchResult] = useState<string | null>(null);
+  const [inquiredPetIds, setInquiredPetIds] = useState<string[]>([]);
 
   const filteredLostPets = lostPets.filter((item) => {
     if (radarFilter === 'all') return true;
@@ -279,12 +280,19 @@ export const SheltersLostPetsView: React.FC<SheltersLostPetsViewProps> = ({
                   </div>
                 </div>
                 <div className="p-5 pt-0">
-                  <button
-                    onClick={() => alert(`Adoption application opened for ${pet.name} at ${pet.shelterName}. Direct shelter coordinator will review your profile!`)}
-                    className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition shadow-xs"
-                  >
-                    Inquire for Adoption
-                  </button>
+                  {inquiredPetIds.includes(pet.id) ? (
+                    <div className="w-full py-2.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5">
+                      <Check className="w-4 h-4 text-emerald-600" />
+                      <span>Inquiry Sent to Shelter Coordinator</span>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setInquiredPetIds((prev) => [...prev, pet.id])}
+                      className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+                    >
+                      Inquire for Adoption
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

@@ -36,12 +36,13 @@ import { VetPatientsView } from './components/vet/VetPatientsView';
 import { VetProfileAvailabilityView } from './components/vet/VetProfileAvailabilityView';
 import { VetConsultationModal } from './components/vet/VetConsultationModal';
 import { VetRescheduleModal } from './components/vet/VetRescheduleModal';
+import { ProviderPortalDashboard } from './components/provider/ProviderPortalDashboard';
 import { Appointment } from './types';
 
 import { Shield, Globe, Settings, WifiOff, Stethoscope, LogOut, Lock, AlertTriangle } from 'lucide-react';
 
 const MainLayout: React.FC = () => {
-  const { user, profile, isLoading, signOut } = useAuth();
+  const { user, profile, isLoading, signOut, switchRole } = useAuth();
 
   const {
     currentRole,
@@ -67,6 +68,7 @@ const MainLayout: React.FC = () => {
   const [reportLostPetOpen, setReportLostPetOpen] = useState(false);
   const [exportPassportOpen, setExportPassportOpen] = useState(false);
   const [vetLoginModalOpen, setVetLoginModalOpen] = useState(false);
+  const [showProviderPortal, setShowProviderPortal] = useState(false);
 
   // Modals state for Veterinarian
   const [vetConsultationOpen, setVetConsultationOpen] = useState(false);
@@ -253,7 +255,26 @@ const MainLayout: React.FC = () => {
     }
   };
 
-  // 5. APPROVED VETERINARIAN PORTAL INTERFACE
+  // 5. PET CARE SERVICE PROVIDER PORTAL DASHBOARD
+  if (
+    profile.role === 'service_provider' ||
+    showProviderPortal
+  ) {
+    return (
+      <ProviderPortalDashboard
+        onBackToPetOwner={() => {
+          setShowProviderPortal(false);
+          if (profile.role === 'service_provider') {
+            switchRole('pet_owner');
+          }
+        }}
+        onOpenNotifications={() => setNotificationsOpen(true)}
+        onOpenSettings={() => setSettingsOpen(true)}
+      />
+    );
+  }
+
+  // 5B. APPROVED VETERINARIAN PORTAL INTERFACE
   if ((profile.role === 'veterinarian' && profile.vetStatus === 'approved') || currentRole === 'veterinarian') {
     return (
       <div className="min-h-screen bg-stone-100/80 text-stone-900 flex flex-col font-sans selection:bg-teal-200 selection:text-teal-950">
@@ -329,12 +350,12 @@ const MainLayout: React.FC = () => {
   // 6. PET OWNER INTERFACE
   return (
     <div className="min-h-screen bg-stone-100/70 text-stone-900 flex flex-col font-sans selection:bg-teal-100 selection:text-teal-900">
-      {/* Sticky Header with Navigation, Pet Switcher, Settings & Vet Portal link */}
+      {/* Sticky Header with Navigation, Pet Switcher, Settings & Provider Portal link */}
       <Header
         onOpenNotifications={() => setNotificationsOpen(true)}
         onOpenNewPetModal={() => setNewPetModalOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
-        onOpenVetPortal={() => setVetLoginModalOpen(true)}
+        onOpenVetPortal={() => setShowProviderPortal(true)}
       />
 
       {/* Offline Storage Status & Sync Banner */}

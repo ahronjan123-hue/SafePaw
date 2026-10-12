@@ -21,6 +21,7 @@ import {
   Info,
   Stethoscope,
   Heart,
+  Building,
   User,
   Loader2,
 } from 'lucide-react';
@@ -135,7 +136,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             <div>
               <h2 className="text-base font-bold text-stone-900">Application Settings</h2>
               <p className="text-xs text-stone-500">
-                Country, currency localization, manual location override & offline storage
+                Regional location, distance and weight units & offline storage
               </p>
             </div>
           </div>
@@ -157,8 +158,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 : 'border-transparent text-stone-500 hover:text-stone-900'
             }`}
           >
-            <Globe className="w-3.5 h-3.5" />
-            <span>Country & Location Override</span>
+            <MapPin className="w-3.5 h-3.5" />
+            <span>Location & Units</span>
           </button>
           <button
             onClick={() => setActiveTab('offline')}
@@ -198,204 +199,88 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         <div className="p-6 space-y-6 flex-1">
           {activeTab === 'location' && (
             <div className="space-y-6">
-              {/* Detected Location Status Card */}
-              <div className="p-4 rounded-xl border border-stone-200 bg-stone-50/70 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                    <span className="text-xs font-bold text-stone-900 uppercase tracking-wide">
-                      Auto-Detected Network Location
-                    </span>
-                  </div>
-                  <span className="text-[11px] font-mono text-stone-500">IP Geolocation</span>
-                </div>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-                  <div>
-                    <div className="text-stone-700 font-medium">
-                      {getCountryByCode(locationSettings.detectedCountryCode).flag}{' '}
-                      {getCountryByCode(locationSettings.detectedCountryCode).name} ·{' '}
-                      {locationSettings.detectedCity}
-                    </div>
-                    <div className="text-[11px] text-stone-500 mt-0.5">
-                      Default Currency:{' '}
-                      <strong>
-                        {getCountryByCode(locationSettings.detectedCountryCode).currencyCode} (
-                        {getCountryByCode(locationSettings.detectedCountryCode).currencySymbol})
-                      </strong>{' '}
-                      · Units: <strong>Kilometers / Kg</strong>
-                    </div>
-                  </div>
-                  {isManualOverride && (
-                    <button
-                      type="button"
-                      onClick={handleResetDetected}
-                      className="text-xs text-teal-700 font-semibold hover:underline self-start sm:self-auto"
-                    >
-                      Restore Auto-Detected
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Manual Override Toggle */}
-              <div className="p-4 rounded-xl border border-teal-100 bg-teal-50/40 flex items-center justify-between gap-4">
-                <div>
-                  <div className="text-xs font-bold text-stone-900">
-                    Manually Override Detected Location
-                  </div>
-                  <div className="text-[11px] text-stone-600 mt-0.5">
-                    Select a different country during travel or change currency and distance units manually.
-                  </div>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={isManualOverride}
-                    onChange={(e) => setIsManualOverride(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-stone-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
-                </label>
-              </div>
-
-              {/* Country Selection Grid */}
-              <div>
-                <label className="block text-xs font-bold uppercase text-stone-600 tracking-wider mb-2">
-                  Select Target Country & Currency
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto pr-1">
-                  {SUPPORTED_COUNTRIES.map((c) => {
-                    const isSelected = selectedCountryCode === c.code;
-                    return (
-                      <div
-                        key={c.code}
-                        onClick={() => {
-                          setIsManualOverride(true);
-                          handleCountrySelect(c.code);
-                        }}
-                        className={`p-3 rounded-xl border cursor-pointer transition flex items-center justify-between gap-2 ${
-                          isSelected
-                            ? 'border-teal-600 bg-teal-50/70 ring-2 ring-teal-200'
-                            : 'border-stone-200 hover:border-stone-300 hover:bg-stone-50'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <span className="text-2xl">{c.flag}</span>
-                          <div className="min-w-0">
-                            <div className="text-xs font-bold text-stone-900 truncate">
-                              {c.name}
-                            </div>
-                            <div className="text-[11px] text-stone-500">
-                              {c.currencyCode} ({c.currencySymbol}) · {c.distanceUnit.toUpperCase()}
-                            </div>
-                          </div>
-                        </div>
-                        {isSelected && (
-                          <div className="w-5 h-5 rounded-full bg-teal-600 text-white flex items-center justify-center shrink-0">
-                            <Check className="w-3 h-3" />
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
               {/* City / Region Customization */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-stone-100">
+              <div className="p-4 rounded-xl border border-stone-200 bg-stone-50/70 space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-stone-700 mb-1 flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-stone-500" />
-                    City / Municipality
-                  </label>
-                  <input
-                    type="text"
-                    value={customCity}
-                    onChange={(e) => setCustomCity(e.target.value)}
-                    placeholder="e.g. London, Berlin, Tokyo"
-                    className="w-full text-xs px-3 py-2 border border-stone-200 rounded-lg focus:outline-teal-600"
-                  />
+                  <h3 className="text-xs font-bold text-stone-900 uppercase tracking-wide">
+                    Service Region & Location
+                  </h3>
+                  <p className="text-[11px] text-stone-500 mt-0.5">
+                    Configure your current city and district to discover nearby pet care providers and emergency services.
+                  </p>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-stone-700 mb-1">
-                    State / Province / Region
-                  </label>
-                  <input
-                    type="text"
-                    value={customRegion}
-                    onChange={(e) => setCustomRegion(e.target.value)}
-                    placeholder="e.g. Greater London, Bavaria, NCR"
-                    className="w-full text-xs px-3 py-2 border border-stone-200 rounded-lg focus:outline-teal-600"
-                  />
-                </div>
-              </div>
 
-              {/* Units & Currency Override */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-stone-100 text-xs">
-                <div>
-                  <label className="block font-semibold text-stone-700 mb-1">
-                    Distance Unit
-                  </label>
-                  <select
-                    value={distanceUnit}
-                    onChange={(e) => setDistanceUnit(e.target.value as 'km' | 'mi')}
-                    className="w-full px-2.5 py-1.5 border border-stone-200 rounded-lg bg-white"
-                  >
-                    <option value="km">Kilometers (km)</option>
-                    <option value="mi">Miles (mi)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-semibold text-stone-700 mb-1">
-                    Weight Unit
-                  </label>
-                  <select
-                    value={weightUnit}
-                    onChange={(e) => setWeightUnit(e.target.value as 'kg' | 'lbs')}
-                    className="w-full px-2.5 py-1.5 border border-stone-200 rounded-lg bg-white"
-                  >
-                    <option value="kg">Kilograms (kg)</option>
-                    <option value="lbs">Pounds (lbs)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-semibold text-stone-700 mb-1">
-                    Currency Mode
-                  </label>
-                  <select
-                    value={currencyOverrideCode}
-                    onChange={(e) => setCurrencyOverrideCode(e.target.value)}
-                    className="w-full px-2.5 py-1.5 border border-stone-200 rounded-lg bg-white"
-                  >
-                    <option value="">Sync with Country ({activePreviewCountry.currencyCode})</option>
-                    {SUPPORTED_COUNTRIES.map((c) => (
-                      <option key={c.code} value={c.currencyCode}>
-                        {c.currencyCode} ({c.currencySymbol}) - {c.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Currency & Emergency Preview */}
-              <div className="p-3.5 bg-stone-50 rounded-xl border border-stone-200 text-xs space-y-2">
-                <div className="font-bold text-stone-800 uppercase tracking-wider text-[10px]">
-                  Localized Display Preview
-                </div>
-                <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div>
-                    <span className="text-stone-500">Standard Vet Exam Fee ($45 USD):</span>{' '}
-                    <strong className="text-sm font-bold text-teal-900">
-                      {formatPrice(sampleUSD)}
-                    </strong>
+                    <label className="block text-xs font-semibold text-stone-700 mb-1 flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-stone-500" />
+                      City / Municipality
+                    </label>
+                    <input
+                      type="text"
+                      value={customCity}
+                      onChange={(e) => setCustomCity(e.target.value)}
+                      placeholder="e.g. Mandaluyong, Quezon City, Makati"
+                      className="w-full text-xs px-3 py-2 border border-stone-200 rounded-lg focus:outline-teal-600 bg-white"
+                    />
                   </div>
-                  <div className="flex items-center gap-1.5 text-stone-600">
-                    <Phone className="w-3.5 h-3.5 text-rose-600" />
-                    <span>
-                      24/7 Hotline: <strong>{activePreviewCountry.emergencyHotline}</strong>
-                    </span>
+                  <div>
+                    <label className="block text-xs font-semibold text-stone-700 mb-1">
+                      State / Province / Region
+                    </label>
+                    <input
+                      type="text"
+                      value={customRegion}
+                      onChange={(e) => setCustomRegion(e.target.value)}
+                      placeholder="e.g. Metro Manila, NCR, Rizal"
+                      className="w-full text-xs px-3 py-2 border border-stone-200 rounded-lg focus:outline-teal-600 bg-white"
+                    />
                   </div>
                 </div>
+              </div>
+
+              {/* Measurement Units */}
+              <div className="p-4 rounded-xl border border-stone-200 bg-stone-50/70 space-y-3">
+                <h3 className="text-xs font-bold text-stone-900 uppercase tracking-wide">
+                  Measurement Units
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="block font-semibold text-stone-700 mb-1">
+                      Distance Unit
+                    </label>
+                    <select
+                      value={distanceUnit}
+                      onChange={(e) => setDistanceUnit(e.target.value as 'km' | 'mi')}
+                      className="w-full px-2.5 py-2 border border-stone-200 rounded-lg bg-white"
+                    >
+                      <option value="km">Kilometers (km)</option>
+                      <option value="mi">Miles (mi)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-stone-700 mb-1">
+                      Weight Unit
+                    </label>
+                    <select
+                      value={weightUnit}
+                      onChange={(e) => setWeightUnit(e.target.value as 'kg' | 'lbs')}
+                      className="w-full px-2.5 py-2 border border-stone-200 rounded-lg bg-white"
+                    >
+                      <option value="kg">Kilograms (kg)</option>
+                      <option value="lbs">Pounds (lbs)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Emergency Hotline Info */}
+              <div className="p-3.5 bg-stone-50 rounded-xl border border-stone-200 text-xs flex items-center justify-between">
+                <div className="flex items-center gap-2 text-stone-700">
+                  <Phone className="w-4 h-4 text-rose-600" />
+                  <span>National 24/7 Emergency Triage & Trauma Hotline</span>
+                </div>
+                <strong className="text-teal-900 font-mono text-xs">{activePreviewCountry.emergencyHotline}</strong>
               </div>
             </div>
           )}
@@ -642,7 +527,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       Supabase Account Role Synchronization
                     </h3>
                     <p className="text-xs text-stone-600 leading-relaxed">
-                      If your account was initially recorded as <strong>Pet Owner</strong> instead of <strong>Veterinarian</strong>, or if you wish to switch roles, you can instantly synchronize your role with Supabase below.
+                      If your account was initially recorded as <strong>Pet Owner</strong> instead of <strong>Pet Care Service Provider</strong>, or if you wish to switch roles, you can instantly synchronize your role with Supabase below.
                     </p>
                   </div>
                 </div>
@@ -655,7 +540,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 )}
 
                 <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
-                  {profile?.role !== 'veterinarian' ? (
+                  {profile?.role !== 'service_provider' && profile?.role !== 'veterinarian' ? (
                     <button
                       type="button"
                       disabled={roleUpdating}
@@ -663,9 +548,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         setRoleUpdating(true);
                         setRoleSuccessMessage(null);
                         try {
-                          await switchRole('veterinarian');
+                          await switchRole('service_provider', {
+                            providerType: 'veterinary_clinic',
+                            businessName: 'Greenwood Animal Hospital & Wellness Center',
+                          });
                           await refreshProfile();
-                          setRoleSuccessMessage('Successfully updated role to Veterinarian in Supabase!');
+                          setRoleSuccessMessage('Successfully updated role to Pet Care Service Provider in Supabase!');
                         } catch (err: any) {
                           setRoleSuccessMessage(err.message || 'Failed to update role.');
                         } finally {
@@ -677,9 +565,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       {roleUpdating ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
-                        <Stethoscope className="w-4 h-4" />
+                        <Building className="w-4 h-4" />
                       )}
-                      <span>Switch & Fix Account to Veterinarian</span>
+                      <span>Switch Role to Pet Care Service Provider</span>
                     </button>
                   ) : (
                     <button
@@ -735,7 +623,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         {/* Modal Footer */}
         <div className="p-4 border-t border-stone-200 bg-stone-50 flex items-center justify-between sticky bottom-0">
           <div className="text-xs text-stone-500">
-            Active Country: <strong>{activePreviewCountry.flag} {activePreviewCountry.name}</strong>
+            Selected Region: <strong>{customCity || 'National'}, {customRegion || 'Philippines'}</strong>
           </div>
           <div className="flex items-center gap-2">
             <button

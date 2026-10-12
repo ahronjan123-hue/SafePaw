@@ -22,6 +22,7 @@ import {
   Settings,
   Globe,
   Stethoscope,
+  Building,
   LogOut,
   User,
 } from 'lucide-react';
@@ -322,14 +323,14 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </div>
 
-            {/* Vet Portal CTA Switcher */}
+            {/* Provider Portal CTA Switcher */}
             <button
               onClick={onOpenVetPortal}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-stone-900 hover:bg-stone-800 text-teal-300 border border-stone-800 rounded-lg text-xs font-bold transition shadow-xs"
-              title="Enter Veterinarian Clinical Portal (EMR)"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-stone-900 hover:bg-stone-800 text-teal-300 border border-stone-800 rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
+              title="Enter Pet Care Service Provider Portal"
             >
-              <Stethoscope className="w-3.5 h-3.5 text-teal-400" />
-              <span>Vet Portal</span>
+              <Building className="w-3.5 h-3.5 text-teal-400" />
+              <span>Provider Portal</span>
             </button>
 
             {/* Notification Bell */}
@@ -488,8 +489,8 @@ export const Header: React.FC<HeaderProps> = ({
               }}
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold text-teal-800 bg-teal-50 hover:bg-teal-100"
             >
-              <Stethoscope className="w-5 h-5 text-teal-600" />
-              <span>Veterinarian Portal (EMR)</span>
+              <Building className="w-5 h-5 text-teal-600" />
+              <span>Provider Portal</span>
             </button>
             <button
               onClick={() => {

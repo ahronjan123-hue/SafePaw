@@ -16,44 +16,50 @@ interface AuthContextType {
   setAuthError: (err: string | null) => void;
   isConfigured: boolean;
   signInWithGoogle: (
-    role: 'pet_owner' | 'veterinarian',
+    role: 'pet_owner' | 'service_provider' | 'veterinarian',
     extraData?: {
       fullName?: string;
       licenseNumber?: string;
       clinicId?: string;
       clinicName?: string;
       specialization?: string;
+      providerType?: 'veterinary_clinic' | 'grooming_salon' | 'rescue_shelter' | 'animal_shelter';
+      businessName?: string;
     }
   ) => Promise<{ success: boolean; error?: string }>;
   signInWithEmail: (
     email: string,
     password: string,
-    role?: 'pet_owner' | 'veterinarian',
+    role?: 'pet_owner' | 'service_provider' | 'veterinarian',
     extraData?: {
       fullName?: string;
       licenseNumber?: string;
       clinicId?: string;
       clinicName?: string;
       specialization?: string;
+      providerType?: 'veterinary_clinic' | 'grooming_salon' | 'rescue_shelter' | 'animal_shelter';
+      businessName?: string;
     }
   ) => Promise<{ success: boolean; error?: string }>;
   signUpWithEmail: (
     email: string,
     password: string,
-    role: 'pet_owner' | 'veterinarian',
+    role: 'pet_owner' | 'service_provider' | 'veterinarian',
     extraData?: {
       fullName: string;
       licenseNumber?: string;
       clinicId?: string;
       clinicName?: string;
       specialization?: string;
+      providerType?: 'veterinary_clinic' | 'grooming_salon' | 'rescue_shelter' | 'animal_shelter';
+      businessName?: string;
     }
   ) => Promise<{ success: boolean; error?: string }>;
   switchRole: (
-    newRole: 'pet_owner' | 'veterinarian',
+    newRole: 'pet_owner' | 'service_provider' | 'veterinarian',
     vetDetails?: Partial<UserProfile>
   ) => Promise<{ success: boolean; error?: string }>;
-  loginAsDemoUser: (role: 'pet_owner' | 'veterinarian' | 'pending_vet', vetId?: string) => void;
+  loginAsDemoUser: (role: 'pet_owner' | 'service_provider' | 'veterinarian' | 'pending_vet', vetId?: string, providerType?: 'veterinary_clinic' | 'grooming_salon' | 'rescue_shelter' | 'animal_shelter') => void;
   approvePendingVet: () => void;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -76,13 +82,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const supabase = getSupabase();
     if (!supabase) return null;
 
-    // Check if there was an intended role (e.g. from Google OAuth or Veterinarian portal)
-    let intendedRole: 'pet_owner' | 'veterinarian' | null = null;
+    // Check if there was an intended role (e.g. from Google OAuth or Provider portal)
+    let intendedRole: 'pet_owner' | 'service_provider' | 'veterinarian' | null = null;
     let intendedMeta: any = null;
     if (typeof window !== 'undefined') {
       try {
         const storedRole = (localStorage.getItem('safepaw_intended_role') || sessionStorage.getItem('safepaw_intended_role')) as any;
-        if (storedRole === 'veterinarian' || storedRole === 'pet_owner') {
+        if (storedRole === 'service_provider' || storedRole === 'veterinarian' || storedRole === 'pet_owner') {
           intendedRole = storedRole;
         }
         const storedMeta = localStorage.getItem('safepaw_intended_metadata') || sessionStorage.getItem('safepaw_intended_metadata');
@@ -119,23 +125,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch {}
 
       if (data) {
-        // If user logged in as veterinarian or user metadata is veterinarian, prioritize veterinarian role
-        const effectiveRole = (intendedRole === 'veterinarian' || metadata.role === 'veterinarian' || data.role === 'veterinarian')
-          ? 'veterinarian'
-          : (data.role || intendedRole || 'pet_owner');
+        // Effective role determination
+        const isProvider = intendedRole === 'service_provider' || metadata.role === 'service_provider' || data.role === 'service_provider' || intendedRole === 'veterinarian' || metadata.role === 'veterinarian' || data.role === 'veterinarian';
+        const effectiveRole = isProvider ? 'service_provider' : (data.role || intendedRole || 'pet_owner');
 
         const effectiveFullName = data.full_name || realGoogleName;
         const effectiveAvatar = data.avatar_url || realAvatar;
         const effectiveClinicId = intendedMeta?.clinicId || data.clinic_id || vetRecord?.clinic_id || '00000000-0000-0000-0000-000000000001';
-        const effectiveClinicName = intendedMeta?.clinicName || data.clinic_name || 'Vets in Practice Animal Hospital (VIP)';
+        const effectiveClinicName = intendedMeta?.businessName || intendedMeta?.clinicName || data.clinic_name || 'Vets in Practice Animal Hospital (VIP)';
         const effectiveLicense = intendedMeta?.licenseNumber || data.license_number || vetRecord?.license_number || 'PRC-VET-VERIFIED';
         const effectiveSpec = intendedMeta?.specialization || data.specialization || vetRecord?.specialization || 'Clinical Veterinary Medicine';
+        const effectiveProviderType = intendedMeta?.providerType || (data.clinic_id ? 'veterinary_clinic' : 'veterinary_clinic');
 
-        // Synchronize profiles table if role was updated or was recorded incorrectly
-        if (effectiveRole !== data.role || (effectiveRole === 'veterinarian' && data.vet_status !== 'approved')) {
+        // Synchronize profiles table if role was updated or was recorded as veterinarian
+        const dbRole = effectiveRole === 'service_provider' ? 'veterinarian' : effectiveRole;
+        if (data.role !== dbRole) {
           await supabase.from('profiles').update({
-            role: effectiveRole,
-            vet_status: effectiveRole === 'veterinarian' ? 'approved' : null,
+            role: dbRole,
+            vet_status: 'approved',
             full_name: effectiveFullName,
             license_number: effectiveLicense,
             clinic_id: effectiveClinicId,
@@ -143,41 +150,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             specialization: effectiveSpec,
             updated_at: new Date().toISOString(),
           }).eq('id', userId);
-
-          if (effectiveRole === 'veterinarian') {
-            try {
-              await supabase.auth.updateUser({
-                data: {
-                  role: 'veterinarian',
-                  vet_status: 'approved',
-                  license_number: effectiveLicense,
-                  clinic_id: effectiveClinicId,
-                  clinic_name: effectiveClinicName,
-                  specialization: effectiveSpec,
-                },
-              });
-            } catch {}
-          }
-        }
-
-        if (effectiveRole === 'veterinarian' && !vetRecord) {
-          try {
-            await supabase.from('veterinarians').upsert({
-              id: userId,
-              user_id: userId,
-              clinic_id: effectiveClinicId,
-              name: effectiveFullName,
-              email: userEmail,
-              phone: data.phone || '+639178349210',
-              title: 'Attending Clinical Veterinarian',
-              license_number: effectiveLicense,
-              specialization: effectiveSpec,
-              avatar_url: effectiveAvatar,
-              approval_status: 'approved',
-              approved_at: new Date().toISOString(),
-              created_at: new Date().toISOString(),
-            });
-          } catch {}
         }
 
         return {
@@ -186,7 +158,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           fullName: effectiveFullName,
           avatarUrl: effectiveAvatar,
           role: effectiveRole,
-          vetStatus: effectiveRole === 'veterinarian' ? 'approved' : null,
+          providerType: effectiveProviderType,
+          businessName: effectiveClinicName,
+          isVerified: true,
+          vetStatus: 'approved',
           licenseNumber: effectiveLicense,
           clinicId: effectiveClinicId,
           clinicName: effectiveClinicName,
@@ -199,13 +174,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // If user profile is not yet in public.profiles table, create it from auth metadata
-      const finalRole = intendedRole || metadata.role || 'pet_owner';
+      const isProvider = intendedRole === 'service_provider' || metadata.role === 'service_provider' || intendedRole === 'veterinarian' || metadata.role === 'veterinarian';
+      const finalRole = isProvider ? 'service_provider' : (metadata.role || 'pet_owner');
       const finalFullName = realGoogleName;
       const finalAvatar = realAvatar;
       const clinicId = intendedMeta?.clinicId || '00000000-0000-0000-0000-000000000001';
-      const clinicName = intendedMeta?.clinicName || 'Vets in Practice Animal Hospital (VIP)';
+      const clinicName = intendedMeta?.businessName || intendedMeta?.clinicName || 'Vets in Practice Animal Hospital (VIP)';
       const licenseNum = intendedMeta?.licenseNumber || 'PRC-VET-VERIFIED';
       const spec = intendedMeta?.specialization || 'Clinical Veterinary Medicine';
+      const providerType = intendedMeta?.providerType || 'veterinary_clinic';
 
       // 1. Insert into public.profiles
       await supabase.from('profiles').upsert({
@@ -213,28 +190,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: userEmail,
         full_name: finalFullName,
         avatar_url: finalAvatar,
-        role: finalRole === 'veterinarian' ? 'veterinarian' : 'pet_owner',
+        role: isProvider ? 'veterinarian' : 'pet_owner',
         updated_at: new Date().toISOString(),
       });
-
-      // 2. If veterinarian, also upsert into public.veterinarians
-      if (finalRole === 'veterinarian') {
-        await supabase.from('veterinarians').upsert({
-          id: userId,
-          user_id: userId,
-          clinic_id: clinicId,
-          name: finalFullName,
-          email: userEmail,
-          phone: '+639178349210',
-          title: 'Attending Clinical Veterinarian',
-          license_number: licenseNum,
-          specialization: spec,
-          avatar_url: finalAvatar,
-          approval_status: 'approved',
-          approved_at: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-        });
-      }
 
       return {
         id: userId,
@@ -242,7 +200,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         fullName: finalFullName,
         avatarUrl: finalAvatar,
         role: finalRole,
-        vetStatus: finalRole === 'veterinarian' ? 'approved' : null,
+        providerType: providerType,
+        businessName: clinicName,
+        isVerified: true,
+        vetStatus: isProvider ? 'approved' : null,
         licenseNumber: licenseNum,
         clinicId: clinicId,
         clinicName: clinicName,
@@ -585,13 +546,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Sign In with Google OAuth (Popup-first so current container never navigates to a stale Supabase Site URL)
   const signInWithGoogle = async (
-    role: 'pet_owner' | 'veterinarian',
+    role: 'pet_owner' | 'service_provider' | 'veterinarian',
     extraData?: {
       fullName?: string;
       licenseNumber?: string;
       clinicId?: string;
       clinicName?: string;
       specialization?: string;
+      providerType?: 'veterinary_clinic' | 'grooming_salon' | 'rescue_shelter' | 'animal_shelter';
+      businessName?: string;
     }
   ): Promise<{ success: boolean; error?: string }> => {
     setAuthError(null);
@@ -605,10 +568,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
+      const isProvider = role === 'service_provider' || role === 'veterinarian';
+      const actualRole = isProvider ? 'service_provider' : 'pet_owner';
+      const dbRole = isProvider ? 'veterinarian' : 'pet_owner';
+
       if (typeof window !== 'undefined') {
         try {
-          localStorage.setItem('safepaw_intended_role', role);
-          localStorage.setItem('safepaw_role_v5_live', role);
+          localStorage.setItem('safepaw_intended_role', actualRole);
+          localStorage.setItem('safepaw_role_v5_live', actualRole);
           if (extraData) {
             localStorage.setItem('safepaw_intended_metadata', JSON.stringify(extraData));
           }
@@ -625,15 +592,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           queryParams: {
             access_type: 'offline',
             prompt: 'consent select_account',
-            role: role,
+            role: actualRole,
           },
           data: {
-            role: role,
-            vet_status: role === 'veterinarian' ? 'approved' : null,
-            license_number: extraData?.licenseNumber || (role === 'veterinarian' ? 'PRC-VET-VERIFIED' : null),
-            clinic_id: extraData?.clinicId || (role === 'veterinarian' ? '00000000-0000-0000-0000-000000000001' : null),
-            clinic_name: extraData?.clinicName || (role === 'veterinarian' ? 'Vets in Practice Animal Hospital (VIP)' : null),
-            specialization: extraData?.specialization || (role === 'veterinarian' ? 'Clinical Veterinary Medicine' : null),
+            role: dbRole,
+            vet_status: isProvider ? 'approved' : null,
+            license_number: extraData?.licenseNumber || (isProvider ? 'PRC-VET-VERIFIED' : null),
+            clinic_id: extraData?.clinicId || (isProvider ? '00000000-0000-0000-0000-000000000001' : null),
+            clinic_name: extraData?.businessName || extraData?.clinicName || (isProvider ? 'Vets in Practice Animal Hospital (VIP)' : null),
+            specialization: extraData?.specialization || (isProvider ? 'Clinical Veterinary Medicine' : null),
             full_name: extraData?.fullName || undefined,
           },
         } as any,
@@ -674,13 +641,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signInWithEmail = async (
     email: string,
     pass: string,
-    intendedRole?: 'pet_owner' | 'veterinarian',
+    intendedRole?: 'pet_owner' | 'service_provider' | 'veterinarian',
     extraData?: {
       fullName?: string;
       licenseNumber?: string;
       clinicId?: string;
       clinicName?: string;
       specialization?: string;
+      providerType?: 'veterinary_clinic' | 'grooming_salon' | 'rescue_shelter' | 'animal_shelter';
+      businessName?: string;
     }
   ): Promise<{ success: boolean; error?: string }> => {
     setAuthError(null);
@@ -764,13 +733,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUpWithEmail = async (
     email: string,
     pass: string,
-    role: 'pet_owner' | 'veterinarian',
+    role: 'pet_owner' | 'service_provider' | 'veterinarian',
     extraData?: {
       fullName: string;
       licenseNumber?: string;
       clinicId?: string;
       clinicName?: string;
       specialization?: string;
+      providerType?: 'veterinary_clinic' | 'grooming_salon' | 'rescue_shelter' | 'animal_shelter';
+      businessName?: string;
     }
   ): Promise<{ success: boolean; error?: string }> => {
     setAuthError(null);
@@ -785,18 +756,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
+      const isProvider = role === 'service_provider' || role === 'veterinarian';
+      const actualRole = isProvider ? 'service_provider' : 'pet_owner';
+      const dbRole = isProvider ? 'veterinarian' : 'pet_owner';
+      const bName = extraData?.businessName || extraData?.clinicName || 'Pet Care Center';
+
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password: pass,
         options: {
           data: {
             full_name: extraData?.fullName || email.split('@')[0],
-            role,
-            vet_status: role === 'veterinarian' ? 'approved' : null,
-            license_number: extraData?.licenseNumber || (role === 'veterinarian' ? 'PRC-VET-0049821' : null),
-            clinic_id: extraData?.clinicId || (role === 'veterinarian' ? 'clinic-1' : null),
-            clinic_name: extraData?.clinicName || (role === 'veterinarian' ? 'Greenwood Animal Hospital & Wellness Center' : null),
-            specialization: extraData?.specialization || (role === 'veterinarian' ? 'Clinical Veterinary Medicine' : null),
+            role: dbRole,
+            vet_status: isProvider ? 'approved' : null,
+            license_number: extraData?.licenseNumber || (isProvider ? 'PRC-VET-0049821' : null),
+            clinic_id: extraData?.clinicId || (isProvider ? 'clinic-1' : null),
+            clinic_name: bName,
+            specialization: extraData?.specialization || (isProvider ? 'Clinical Veterinary Medicine' : null),
           },
         },
       });
@@ -815,12 +791,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: data.user.id,
           email: data.user.email || email,
           fullName: extraData?.fullName || email.split('@')[0],
-          role,
-          vetStatus: role === 'veterinarian' ? 'approved' : null,
-          licenseNumber: extraData?.licenseNumber || (role === 'veterinarian' ? 'PRC-VET-0049821' : ''),
-          clinicId: extraData?.clinicId || (role === 'veterinarian' ? 'clinic-1' : ''),
-          clinicName: extraData?.clinicName || (role === 'veterinarian' ? 'Greenwood Animal Hospital & Wellness Center' : ''),
-          specialization: extraData?.specialization || (role === 'veterinarian' ? 'Clinical Veterinary Medicine' : ''),
+          role: actualRole,
+          providerType: extraData?.providerType || 'veterinary_clinic',
+          businessName: bName,
+          isVerified: true,
+          vetStatus: isProvider ? 'approved' : null,
+          licenseNumber: extraData?.licenseNumber || (isProvider ? 'PRC-VET-0049821' : ''),
+          clinicId: extraData?.clinicId || (isProvider ? 'clinic-1' : ''),
+          clinicName: bName,
+          specialization: extraData?.specialization || (isProvider ? 'Clinical Veterinary Medicine' : ''),
           createdAt: new Date().toISOString(),
         };
 
@@ -828,7 +807,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: prof.id,
           email: prof.email,
           full_name: prof.fullName,
-          role: prof.role,
+          role: dbRole,
           vet_status: prof.vetStatus,
           license_number: prof.licenseNumber || null,
           clinic_id: prof.clinicId || null,
@@ -849,19 +828,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Instant 1-Click Login for Testing / Demonstration
-  const loginAsDemoUser = (role: 'pet_owner' | 'veterinarian' | 'pending_vet', vetId?: string) => {
+  const loginAsDemoUser = (
+    role: 'pet_owner' | 'service_provider' | 'veterinarian' | 'pending_vet',
+    vetId?: string,
+    providerType: 'veterinary_clinic' | 'grooming_salon' | 'rescue_shelter' | 'animal_shelter' = 'veterinary_clinic'
+  ) => {
     setIsLoading(true);
     setAuthError(null);
 
     let demoUser: User;
     let demoProfile: UserProfile;
 
-    if (role === 'veterinarian') {
+    if (role === 'service_provider' || role === 'veterinarian') {
       const matchedVet = INITIAL_VETS.find((v) => v.id === vetId) || INITIAL_VETS[0];
+      const providerBusinessNames: Record<string, string> = {
+        veterinary_clinic: 'Greenwood Animal Hospital & Wellness Center',
+        grooming_salon: 'Paws & Bubbles Pet Grooming Salon',
+        rescue_shelter: 'PawHaven Animal Rescue Alliance',
+        animal_shelter: 'Metro Manila Municipal Animal Care Shelter',
+      };
+      const businessName = providerBusinessNames[providerType] || matchedVet.clinicName;
+
       demoUser = {
         id: matchedVet.id,
         app_metadata: { provider: 'google', providers: ['google'] },
-        user_metadata: { full_name: matchedVet.name, role: 'veterinarian' },
+        user_metadata: { full_name: matchedVet.name, role: 'service_provider', provider_type: providerType },
         aud: 'authenticated',
         created_at: new Date().toISOString(),
         email: matchedVet.email,
@@ -875,11 +866,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: matchedVet.email,
         fullName: matchedVet.name,
         avatarUrl: matchedVet.avatar,
-        role: 'veterinarian',
+        role: 'service_provider',
+        providerType: providerType,
+        businessName: businessName,
+        isVerified: true,
         vetStatus: 'approved',
         licenseNumber: matchedVet.licenseNumber,
         clinicId: matchedVet.clinicId,
-        clinicName: matchedVet.clinicName,
+        clinicName: businessName,
         specialization: matchedVet.specialization,
         bio: matchedVet.bio,
         phone: matchedVet.phone,
@@ -888,7 +882,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       try {
         localStorage.setItem('safepaw_active_vet_v3', JSON.stringify(matchedVet));
-        localStorage.setItem('safepaw_role_v3', 'veterinarian');
+        localStorage.setItem('safepaw_role_v3', 'service_provider');
+        localStorage.setItem('safepaw_provider_type', providerType);
       } catch {}
     } else if (role === 'pending_vet') {
       const pendingId = 'vet-pending-1';
@@ -1040,21 +1035,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(false);
   };
 
-  // Switch Role between Pet Owner and Veterinarian
+  // Switch Role between Pet Owner and Provider
   const switchRole = async (
-    newRole: 'pet_owner' | 'veterinarian',
+    newRole: 'pet_owner' | 'service_provider' | 'veterinarian',
     vetDetails?: Partial<UserProfile>
   ): Promise<{ success: boolean; error?: string }> => {
     if (!profile) return { success: false, error: 'No active profile' };
 
+    const isProvider = newRole === 'service_provider' || newRole === 'veterinarian';
+    const actualRole = isProvider ? 'service_provider' : 'pet_owner';
+    const dbRole = isProvider ? 'veterinarian' : 'pet_owner';
+
     const updatedProfile: UserProfile = {
       ...profile,
-      role: newRole,
-      vetStatus: newRole === 'veterinarian' ? 'approved' : null,
-      licenseNumber: vetDetails?.licenseNumber || profile.licenseNumber || (newRole === 'veterinarian' ? 'PRC-VET-0049821' : ''),
-      clinicId: vetDetails?.clinicId || profile.clinicId || (newRole === 'veterinarian' ? 'clinic-1' : ''),
-      clinicName: vetDetails?.clinicName || profile.clinicName || (newRole === 'veterinarian' ? 'Greenwood Animal Hospital & Wellness Center' : ''),
-      specialization: vetDetails?.specialization || profile.specialization || (newRole === 'veterinarian' ? 'Clinical Veterinary Medicine' : ''),
+      role: actualRole,
+      providerType: vetDetails?.providerType || profile.providerType || 'veterinary_clinic',
+      businessName: vetDetails?.businessName || profile.businessName || 'Greenwood Animal Hospital & Wellness Center',
+      isVerified: true,
+      vetStatus: isProvider ? 'approved' : null,
+      licenseNumber: vetDetails?.licenseNumber || profile.licenseNumber || (isProvider ? 'PRC-VET-0049821' : ''),
+      clinicId: vetDetails?.clinicId || profile.clinicId || (isProvider ? 'clinic-1' : ''),
+      clinicName: vetDetails?.clinicName || profile.clinicName || (isProvider ? 'Greenwood Animal Hospital & Wellness Center' : ''),
+      specialization: vetDetails?.specialization || profile.specialization || (isProvider ? 'Clinical Veterinary Medicine' : ''),
       fullName: vetDetails?.fullName || profile.fullName,
       avatarUrl: vetDetails?.avatarUrl || profile.avatarUrl,
     };
@@ -1062,9 +1064,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProfile(updatedProfile);
 
     try {
-      localStorage.setItem('safepaw_role_v3', newRole);
-      localStorage.setItem('safepaw_intended_role', newRole);
-      localStorage.setItem('safepaw_role_v5_live', newRole);
+      localStorage.setItem('safepaw_role_v3', actualRole);
+      localStorage.setItem('safepaw_intended_role', actualRole);
+      localStorage.setItem('safepaw_role_v5_live', actualRole);
       if (user) {
         localStorage.setItem(
           'safepaw_active_user_session_v5',
@@ -1079,7 +1081,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await supabase
           .from('profiles')
           .update({
-            role: updatedProfile.role,
+            role: dbRole,
             vet_status: updatedProfile.vetStatus,
             license_number: updatedProfile.licenseNumber || null,
             clinic_id: updatedProfile.clinicId || null,

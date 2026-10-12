@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { AppointmentStatus } from '../../types';
 import {
@@ -21,6 +21,8 @@ export const AppointmentTrackerView: React.FC = () => {
     formatPrice,
     currentCountry,
   } = useApp();
+
+  const [videoConnected, setVideoConnected] = useState(false);
 
   const currentPetAppointments = appointments.filter((a) => a.petId === selectedPet?.id && a.status !== 'cancelled');
   const activeAppointment =
@@ -324,12 +326,27 @@ export const AppointmentTrackerView: React.FC = () => {
                 <p className="text-xs text-teal-200">
                   Your encrypted consultation room is ready. Have {activeAppointment.petName} nearby with good room lighting.
                 </p>
-                <button
-                  onClick={() => alert(`Starting encrypted video consultation for ${activeAppointment.petName}...`)}
-                  className="w-full py-2.5 bg-teal-400 hover:bg-teal-300 text-teal-950 font-bold text-xs rounded-xl transition shadow-xs"
-                >
-                  Join Video Consultation Room
-                </button>
+                {videoConnected ? (
+                  <div className="p-3 bg-teal-900 rounded-xl border border-teal-700 text-teal-100 flex items-center justify-between text-xs">
+                    <span className="font-semibold flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      Live Encrypted Stream Active
+                    </span>
+                    <button
+                      onClick={() => setVideoConnected(false)}
+                      className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold cursor-pointer transition"
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setVideoConnected(true)}
+                    className="w-full py-2.5 bg-teal-400 hover:bg-teal-300 text-teal-950 font-bold text-xs rounded-xl transition shadow-xs cursor-pointer"
+                  >
+                    Join Video Consultation Room
+                  </button>
+                )}
               </div>
             )}
 

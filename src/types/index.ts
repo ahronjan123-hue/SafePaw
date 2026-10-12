@@ -269,7 +269,24 @@ export interface LocationSettings {
   autoSyncEnabled: boolean;
 }
 
-export type UserRole = 'pet_owner' | 'veterinarian';
+export type ProviderServiceType = 'veterinary_clinic' | 'grooming_salon' | 'rescue_shelter' | 'animal_shelter';
+
+export type UserRole = 'pet_owner' | 'service_provider' | 'veterinarian';
+
+export interface ProviderDashboardSession {
+  id: string;
+  businessName: string;
+  providerType: ProviderServiceType;
+  ownerName: string;
+  email: string;
+  phone: string;
+  isVerified: boolean;
+  avatarUrl?: string;
+  ratingScore: number;
+  totalClients: number;
+  activeBookings: number;
+  monthlyRevenue: number;
+}
 
 export interface VetUserSession {
   id: string;
@@ -291,3 +308,4 @@ export interface VetUserSession {
   approvedAt?: string;
   createdAt?: string;
 }
+

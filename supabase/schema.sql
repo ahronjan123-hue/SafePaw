@@ -23,7 +23,10 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   email TEXT NOT NULL,
   full_name TEXT,
   avatar_url TEXT,
-  role TEXT NOT NULL DEFAULT 'pet_owner' CHECK (role IN ('pet_owner', 'veterinarian', 'admin')),
+  role TEXT NOT NULL DEFAULT 'pet_owner' CHECK (role IN ('pet_owner', 'service_provider', 'veterinarian', 'admin')),
+  provider_type TEXT DEFAULT 'veterinary_clinic' CHECK (provider_type IN ('veterinary_clinic', 'grooming_salon', 'rescue_shelter', 'animal_shelter') OR provider_type IS NULL),
+  business_name TEXT,
+  is_verified BOOLEAN DEFAULT true,
   vet_status TEXT DEFAULT NULL CHECK (vet_status IN ('pending', 'approved', 'rejected') OR vet_status IS NULL),
   license_number TEXT,
   clinic_id TEXT,
@@ -35,14 +38,26 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
--- Safe migration if table was previously created with strict UUID foreign key constraint:
+-- Safe migration for role enum or check constraint:
+DO $$
+BEGIN
+  -- If role column uses Postgres enum user_role
+  ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'service_provider';
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
 DO $$
 BEGIN
   ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_id_fkey;
+  ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_role_check;
+  ALTER TABLE public.profiles ADD CONSTRAINT profiles_role_check CHECK (role IN ('pet_owner', 'service_provider', 'veterinarian', 'admin'));
   ALTER TABLE public.profiles ALTER COLUMN id TYPE TEXT;
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS provider_type TEXT DEFAULT 'veterinary_clinic';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS business_name TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT true;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS phone TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS bio TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS clinic_id TEXT;
@@ -55,6 +70,7 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS full_name TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_profiles_email ON public.profiles(email);
 CREATE INDEX IF NOT EXISTS idx_profiles_role_status ON public.profiles(role, vet_status);
+CREATE INDEX IF NOT EXISTS idx_profiles_provider_type ON public.profiles(provider_type);
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow profile access" ON public.profiles;
