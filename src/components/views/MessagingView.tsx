@@ -152,7 +152,7 @@ export const MessagingView: React.FC = () => {
               className="w-full py-2.5 px-3 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-bold transition text-center cursor-pointer flex items-center justify-center gap-1.5"
             >
               <Plus className="w-3.5 h-3.5 text-teal-700" />
-              <span>+ Message Another Clinic</span>
+              <span>Message Another Clinic</span>
             </button>
           </div>
         </div>

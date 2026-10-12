@@ -258,14 +258,13 @@ const MainLayout: React.FC = () => {
   // 5. SERVICE PROVIDER PORTAL DASHBOARD (Veterinary Clinics, Spa & Grooming, Shelters & Rescue)
   if (
     profile.role === 'service_provider' ||
-    profile.role === 'veterinarian' ||
     showProviderPortal
   ) {
     return (
       <ProviderPortalDashboard
         onBackToPetOwner={() => {
           setShowProviderPortal(false);
-          if (profile.role === 'service_provider' || profile.role === 'veterinarian') {
+          if (profile.role === 'service_provider') {
             switchRole('pet_owner');
           }
         }}

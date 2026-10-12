@@ -51,66 +51,8 @@ interface VetApplicationRecord {
   reviewNotes?: string;
 }
 
-// Initial Pre-Approved Veterinarians
-const approvedVets: ApprovedVetRecord[] = [
-  {
-    id: 'vet-1',
-    name: 'Dr. Elena Ramos, DVM',
-    email: 'elena.ramos@greenwoodvet.ph',
-    phone: '+639178349210',
-    title: 'Medical Director',
-    licenseNumber: 'PRC-VET-0038912',
-    clinicId: 'clinic-1',
-    clinicName: 'Greenwood Animal Hospital & Wellness Center',
-    specialization: 'Canine & Feline Internal Medicine',
-    avatar: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=300&q=80',
-    consultationFeeUSD: 12,
-    availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-    availableTimeSlots: ['08:30 AM', '09:15 AM', '10:00 AM', '10:45 AM', '11:30 AM', '01:30 PM', '02:15 PM', '03:00 PM', '03:45 PM'],
-    bio: '14+ years of clinical excellence specializing in geriatric patient management, chronic kidney disease, preventive immunology, and feline medicine.',
-    approvalStatus: 'approved',
-    approvedAt: '2025-01-10T08:00:00Z',
-    createdAt: '2025-01-10T08:00:00Z',
-  },
-  {
-    id: 'vet-2',
-    name: 'Dr. Marcus Vance, DVM',
-    email: 'marcus.vance@greenwoodvet.ph',
-    phone: '+639185521902',
-    title: 'Senior Surgeon',
-    licenseNumber: 'PRC-VET-0041289',
-    clinicId: 'clinic-1',
-    clinicName: 'Greenwood Animal Hospital & Wellness Center',
-    specialization: 'Orthopedic Surgery & Exotic Pets',
-    avatar: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=300&q=80',
-    consultationFeeUSD: 15,
-    availableDays: ['Mon', 'Wed', 'Thu', 'Fri', 'Sat'],
-    availableTimeSlots: ['09:00 AM', '10:00 AM', '11:00 AM', '02:00 PM', '03:00 PM', '04:00 PM', '05:00 PM'],
-    bio: 'Board-certified orthopedic veterinary surgeon with deep passion for avian, rabbit, and exotic mammal soft tissue surgery.',
-    approvalStatus: 'approved',
-    approvedAt: '2025-02-14T09:30:00Z',
-    createdAt: '2025-02-14T09:30:00Z',
-  },
-  {
-    id: 'vet-3',
-    name: 'Dr. Sarah Alcantara, DVM',
-    email: 'sarah.alcantara@stfrancis247.ph',
-    phone: '+639209994357',
-    title: 'Emergency Care Specialist',
-    licenseNumber: 'PRC-VET-0059281',
-    clinicId: 'clinic-2',
-    clinicName: 'St. Francis 24/7 Pet Emergency & Trauma Center',
-    specialization: 'Critical Care & Anesthesiology',
-    avatar: 'https://images.unsplash.com/photo-1594824813583-57755f1f9a23?auto=format&fit=crop&w=300&q=80',
-    consultationFeeUSD: 20,
-    availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-    availableTimeSlots: ['08:00 AM', '10:00 AM', '12:00 PM', '02:00 PM', '04:00 PM', '06:00 PM', '08:00 PM'],
-    bio: 'Dedicated trauma resuscitator managing acute trauma stabilization, emergency blood transfusions, and intensive care monitoring.',
-    approvalStatus: 'approved',
-    approvedAt: '2025-03-01T11:00:00Z',
-    createdAt: '2025-03-01T11:00:00Z',
-  },
-];
+// Live Real Registered Veterinarians
+const approvedVets: ApprovedVetRecord[] = [];
 
 const applicationsStore: VetApplicationRecord[] = [];
 

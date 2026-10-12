@@ -69,8 +69,28 @@ export const PetsManagementView: React.FC<PetsManagementViewProps> = ({
         </button>
       </div>
 
-      {/* Pets Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Pets Grid or Empty State */}
+      {pets.length === 0 ? (
+        <div className="bg-white rounded-3xl border border-stone-200 p-8 sm:p-12 text-center max-w-xl mx-auto space-y-4 shadow-xs">
+          <div className="w-16 h-16 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center mx-auto border border-teal-100 shadow-sm">
+            <Shield className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-bold text-stone-900">No Pets Registered Yet</h2>
+          <p className="text-xs sm:text-sm text-stone-500 leading-relaxed">
+            Create your companion's official digital health record to store vaccination passports, clinical notes, and access hospital booking.
+          </p>
+          <div className="pt-2">
+            <button
+              onClick={onOpenNewPetModal}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs transition shadow-sm cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Register Your First Pet</span>
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {pets.map((pet) => {
           const isSelected = pet.id === selectedPetId;
           const isEditing = editingPetId === pet.id;
@@ -248,7 +268,8 @@ export const PetsManagementView: React.FC<PetsManagementViewProps> = ({
             </div>
           );
         })}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

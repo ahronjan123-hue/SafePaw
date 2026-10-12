@@ -1407,10 +1407,11 @@ export const ProviderPortalDashboard: React.FC<ProviderPortalDashboardProps> = (
                     </div>
                   </div>
                 </div>
+              </div>
             </div>
           )}
-          </div>
-        )}
+        </div>
+      )}
 
         {/* TAB 2: BOOKINGS */}
         {activeSidebarTab === 'bookings' && (
