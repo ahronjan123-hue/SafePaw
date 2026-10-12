@@ -10,8 +10,13 @@ import {
   Shield,
   Calendar,
   Activity,
+  Scissors,
+  Building,
+  Home,
+  Sparkles,
 } from 'lucide-react';
 import { INITIAL_CLINICS } from '../../data/initialData';
+import { ProviderServiceType } from '../../types';
 
 export const AuthPage: React.FC = () => {
   const {
@@ -40,10 +45,12 @@ export const AuthPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
 
-  // Vet registration specific fields
+  // Vet / Provider registration specific fields
+  const [providerType, setProviderType] = useState<ProviderServiceType>('veterinary_clinic');
+  const [businessName, setBusinessName] = useState('Greenwood Animal Hospital & Wellness Center');
   const [vetLicense, setVetLicense] = useState('');
   const [selectedClinicId, setSelectedClinicId] = useState(INITIAL_CLINICS[0].id);
-  const [vetSpecialization, setVetSpecialization] = useState('Small Animal Medicine');
+  const [vetSpecialization, setVetSpecialization] = useState('Clinical Veterinary Medicine');
 
   const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
 
@@ -69,12 +76,27 @@ export const AuthPage: React.FC = () => {
   const handleQuickEnter = async () => {
     const clinic = INITIAL_CLINICS.find((c) => c.id === selectedClinicId) || INITIAL_CLINICS[0];
     loginAsDemoUser(portalMode);
-    if (portalMode === 'veterinarian' && (vetLicense.trim() || selectedClinicId || vetSpecialization.trim())) {
+    if (portalMode === 'veterinarian') {
+      const bName =
+        providerType === 'veterinary_clinic'
+          ? (businessName.trim() || clinic.name)
+          : providerType === 'grooming_salon'
+          ? 'Paws & Bubbles Pet Luxury Spa & Grooming'
+          : 'PawHaven Animal Rescue Alliance';
+
       await updateProfileDetails({
-        licenseNumber: vetLicense.trim() || undefined,
+        providerType,
+        businessName: bName,
+        licenseNumber: providerType === 'veterinary_clinic' ? (vetLicense.trim() || 'PRC-VET-0038912') : undefined,
         clinicId: clinic.id,
-        clinicName: clinic.name,
-        specialization: vetSpecialization.trim() || undefined,
+        clinicName: bName,
+        specialization:
+          vetSpecialization.trim() ||
+          (providerType === 'veterinary_clinic'
+            ? 'Clinical Veterinary Medicine'
+            : providerType === 'grooming_salon'
+            ? 'Master Pet Stylist & Spa Care'
+            : 'Shelter Sanctuary & Animal Welfare'),
       });
     }
   };
@@ -303,59 +325,187 @@ export const AuthPage: React.FC = () => {
               </div>
             )}
 
-            {/* If Veterinarian Mode: Credential Details */}
+            {/* If Service Provider Mode: Choose POV (Clinic, Spa/Grooming, Shelter/Rescue) */}
             {portalMode === 'veterinarian' && (
-              <div className="bg-stone-950/80 rounded-2xl p-4 border border-stone-800 space-y-3">
-                <div className="flex items-center justify-between">
+              <div className="bg-stone-950/90 rounded-2xl p-4 sm:p-5 border border-teal-800/60 space-y-4 animate-fadeIn">
+                <div className="flex items-center justify-between border-b border-stone-800 pb-2.5">
                   <span className="text-[11px] uppercase font-bold text-teal-400 tracking-wider flex items-center gap-1.5">
-                    <FileText className="w-3.5 h-3.5" />
-                    PRC License Credentials
+                    <Building className="w-3.5 h-3.5" />
+                    Select Service Provider POV:
                   </span>
-                  <span className="text-[10px] text-stone-400 font-mono">Republic of the Philippines</span>
+                  <span className="text-[10px] text-stone-400 font-mono">Provider Portal Suite</span>
                 </div>
 
-                <div className="space-y-2 text-xs">
-                  <div>
-                    <label className="block text-[11px] text-stone-400 mb-1">
-                      Professional Regulation Commission (PRC) License Number:
-                    </label>
-                    <input
-                      type="text"
-                      value={vetLicense}
-                      onChange={(e) => setVetLicense(e.target.value)}
-                      placeholder="e.g. PRC-VET-0038912"
-                      className="w-full bg-stone-900 border border-stone-700 rounded-xl px-3 py-2 text-stone-100 font-mono text-xs focus:outline-hidden focus:border-teal-500"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {/* 3 Provider POV Selector Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProviderType('veterinary_clinic');
+                      setBusinessName('Greenwood Animal Hospital & Wellness Center');
+                    }}
+                    className={`p-3 rounded-xl border text-left transition flex flex-col justify-between gap-2 cursor-pointer ${
+                      providerType === 'veterinary_clinic'
+                        ? 'bg-teal-950/70 border-teal-500 text-white ring-2 ring-teal-500/40 shadow-sm'
+                        : 'bg-stone-900 border-stone-800 text-stone-400 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className={`p-1.5 rounded-lg ${providerType === 'veterinary_clinic' ? 'bg-teal-500 text-stone-950' : 'bg-stone-800 text-stone-400'}`}>
+                        <Stethoscope className="w-4 h-4" />
+                      </div>
+                      {providerType === 'veterinary_clinic' && <CheckCircle className="w-3.5 h-3.5 text-teal-400" />}
+                    </div>
                     <div>
-                      <label className="block text-[11px] text-stone-400 mb-1">Clinic / Hospital:</label>
-                      <select
-                        value={selectedClinicId}
-                        onChange={(e) => setSelectedClinicId(e.target.value)}
-                        className="w-full bg-stone-900 border border-stone-700 rounded-xl px-2.5 py-2 text-stone-100 text-xs focus:outline-hidden focus:border-teal-500"
-                      >
-                        {INITIAL_CLINICS.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="text-xs font-bold text-white">Veterinary Clinic</div>
+                      <div className="text-[10px] text-stone-400 mt-0.5">EMR, Triage & Surgeries</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProviderType('grooming_salon');
+                      setBusinessName('Paws & Bubbles Pet Luxury Spa & Grooming');
+                    }}
+                    className={`p-3 rounded-xl border text-left transition flex flex-col justify-between gap-2 cursor-pointer ${
+                      providerType === 'grooming_salon'
+                        ? 'bg-teal-950/70 border-teal-500 text-white ring-2 ring-teal-500/40 shadow-sm'
+                        : 'bg-stone-900 border-stone-800 text-stone-400 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className={`p-1.5 rounded-lg ${providerType === 'grooming_salon' ? 'bg-teal-500 text-stone-950' : 'bg-stone-800 text-stone-400'}`}>
+                        <Scissors className="w-4 h-4" />
+                      </div>
+                      {providerType === 'grooming_salon' && <CheckCircle className="w-3.5 h-3.5 text-teal-400" />}
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-white">Spa & Grooming</div>
+                      <div className="text-[10px] text-stone-400 mt-0.5">Bays & Transformations</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProviderType('rescue_shelter');
+                      setBusinessName('PawHaven Animal Rescue Alliance');
+                    }}
+                    className={`p-3 rounded-xl border text-left transition flex flex-col justify-between gap-2 cursor-pointer ${
+                      providerType === 'rescue_shelter' || providerType === 'animal_shelter'
+                        ? 'bg-teal-950/70 border-teal-500 text-white ring-2 ring-teal-500/40 shadow-sm'
+                        : 'bg-stone-900 border-stone-800 text-stone-400 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className={`p-1.5 rounded-lg ${providerType === 'rescue_shelter' || providerType === 'animal_shelter' ? 'bg-teal-500 text-stone-950' : 'bg-stone-800 text-stone-400'}`}>
+                        <Shield className="w-4 h-4" />
+                      </div>
+                      {(providerType === 'rescue_shelter' || providerType === 'animal_shelter') && <CheckCircle className="w-3.5 h-3.5 text-teal-400" />}
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-white">Shelters & Rescue</div>
+                      <div className="text-[10px] text-stone-400 mt-0.5">Rescues & Adoptions</div>
+                    </div>
+                  </button>
+                </div>
+
+                {/* Specific Fields for selected POV */}
+                {providerType === 'veterinary_clinic' && (
+                  <div className="space-y-2 text-xs pt-1 border-t border-stone-850">
+                    <div>
+                      <label className="block text-[11px] text-stone-400 mb-1">
+                        Professional Regulation Commission (PRC) License Number:
+                      </label>
+                      <input
+                        type="text"
+                        value={vetLicense}
+                        onChange={(e) => setVetLicense(e.target.value)}
+                        placeholder="e.g. PRC-VET-0038912"
+                        className="w-full bg-stone-900 border border-stone-700 rounded-xl px-3 py-2 text-stone-100 font-mono text-xs focus:outline-hidden focus:border-teal-500"
+                      />
                     </div>
 
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[11px] text-stone-400 mb-1">Clinic / Hospital:</label>
+                        <select
+                          value={selectedClinicId}
+                          onChange={(e) => setSelectedClinicId(e.target.value)}
+                          className="w-full bg-stone-900 border border-stone-700 rounded-xl px-2.5 py-2 text-stone-100 text-xs focus:outline-hidden focus:border-teal-500"
+                        >
+                          {INITIAL_CLINICS.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] text-stone-400 mb-1">Specialization:</label>
+                        <input
+                          type="text"
+                          value={vetSpecialization}
+                          onChange={(e) => setVetSpecialization(e.target.value)}
+                          placeholder="Clinical Veterinary Medicine"
+                          className="w-full bg-stone-900 border border-stone-700 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-hidden focus:border-teal-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {providerType === 'grooming_salon' && (
+                  <div className="space-y-2 text-xs pt-1 border-t border-stone-850">
                     <div>
-                      <label className="block text-[11px] text-stone-400 mb-1">Specialization:</label>
+                      <label className="block text-[11px] text-stone-400 mb-1">Salon / Spa Facility Name:</label>
+                      <input
+                        type="text"
+                        value={businessName}
+                        onChange={(e) => setBusinessName(e.target.value)}
+                        placeholder="Paws & Bubbles Pet Luxury Spa & Grooming"
+                        className="w-full bg-stone-900 border border-stone-700 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-hidden focus:border-teal-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-stone-400 mb-1">Stylist Master Specialty:</label>
                       <input
                         type="text"
                         value={vetSpecialization}
                         onChange={(e) => setVetSpecialization(e.target.value)}
-                        placeholder="Internal Medicine, Surgery, etc."
+                        placeholder="Asian Fusion, De-shedding & Medicated Baths"
                         className="w-full bg-stone-900 border border-stone-700 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-hidden focus:border-teal-500"
                       />
                     </div>
                   </div>
-                </div>
+                )}
+
+                {(providerType === 'rescue_shelter' || providerType === 'animal_shelter') && (
+                  <div className="space-y-2 text-xs pt-1 border-t border-stone-850">
+                    <div>
+                      <label className="block text-[11px] text-stone-400 mb-1">Shelter / Organization Name:</label>
+                      <input
+                        type="text"
+                        value={businessName}
+                        onChange={(e) => setBusinessName(e.target.value)}
+                        placeholder="PawHaven Animal Rescue Alliance"
+                        className="w-full bg-stone-900 border border-stone-700 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-hidden focus:border-teal-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-stone-400 mb-1">Welfare Focus:</label>
+                      <input
+                        type="text"
+                        value={vetSpecialization}
+                        onChange={(e) => setVetSpecialization(e.target.value)}
+                        placeholder="Stray Rescue Dispatches & Foster Network"
+                        className="w-full bg-stone-900 border border-stone-700 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-hidden focus:border-teal-500"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

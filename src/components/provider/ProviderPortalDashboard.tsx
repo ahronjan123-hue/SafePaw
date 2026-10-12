@@ -37,6 +37,12 @@ import {
   BadgeCheck,
   Share2,
 } from 'lucide-react';
+import { ProviderBookingsView } from './ProviderBookingsView';
+import { ProviderClientsView } from './ProviderClientsView';
+import { ProviderPetsView } from './ProviderPetsView';
+import { ProviderMessagesView } from './ProviderMessagesView';
+import { ProviderReportsView } from './ProviderReportsView';
+import { ProviderSettingsView } from './ProviderSettingsView';
 
 interface ProviderPortalDashboardProps {
   onBackToPetOwner?: () => void;
@@ -234,23 +240,64 @@ export const ProviderPortalDashboard: React.FC<ProviderPortalDashboardProps> = (
                   {providerTypeLabel}
                 </span>
 
-                {/* Provider Type Quick Switcher (For demonstration & testing all 4 dashboard modes) */}
-                <select
-                  value={providerType}
-                  onChange={(e) => {
-                    const newType = e.target.value as ProviderServiceType;
-                    setProviderType(newType);
-                  }}
-                  className="bg-stone-900 text-stone-300 text-[10px] px-2 py-0.5 rounded border border-stone-700 focus:outline-teal-500 cursor-pointer hidden md:inline-block"
-                  title="Switch provider specialty view"
-                >
-                  <option value="veterinary_clinic">Type: Veterinary Clinic</option>
-                  <option value="grooming_salon">Type: Pet Grooming Salon</option>
-                  <option value="rescue_shelter">Type: Rescue Organization</option>
-                  <option value="animal_shelter">Type: Animal Shelter</option>
-                </select>
+                {/* Provider Type Display Pill */}
+                <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-medium text-stone-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse"></span>
+                  {providerTypeLabel}
+                </span>
               </div>
             </div>
+          </div>
+
+          {/* Center Header: 3-Way Service Provider POV Switcher */}
+          <div className="hidden xl:flex items-center gap-1 p-1 bg-stone-900 rounded-2xl border border-stone-800">
+            <button
+              type="button"
+              onClick={() => {
+                setProviderType('veterinary_clinic');
+                showToast('Switched to Veterinary Clinic POV');
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                providerType === 'veterinary_clinic'
+                  ? 'bg-teal-500 text-stone-950 shadow-md'
+                  : 'text-stone-400 hover:text-white'
+              }`}
+            >
+              <Activity className="w-3.5 h-3.5" />
+              <span>Veterinary Clinic POV</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setProviderType('grooming_salon');
+                showToast('Switched to Spa & Grooming POV');
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                providerType === 'grooming_salon'
+                  ? 'bg-teal-500 text-stone-950 shadow-md'
+                  : 'text-stone-400 hover:text-white'
+              }`}
+            >
+              <Scissors className="w-3.5 h-3.5" />
+              <span>Spa & Grooming POV</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setProviderType('rescue_shelter');
+                showToast('Switched to Shelters & Rescue POV');
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                providerType === 'rescue_shelter' || providerType === 'animal_shelter'
+                  ? 'bg-teal-500 text-stone-950 shadow-md'
+                  : 'text-stone-400 hover:text-white'
+              }`}
+            >
+              <Shield className="w-3.5 h-3.5" />
+              <span>Shelters & Rescue POV</span>
+            </button>
           </div>
 
           {/* Right Header: Notifications, Messages, Profile Menu */}
@@ -461,17 +508,86 @@ export const ProviderPortalDashboard: React.FC<ProviderPortalDashboardProps> = (
         {/* ========================================================= */}
         {/* MAIN DASHBOARD CONTENT */}
         {/* ========================================================= */}
-        <main className="flex-1 space-y-8 min-w-0">
-          {/* ========================================================= */}
-          {/* COMMON PROVIDER METRICS (Top Statistics Cards) */}
-          {/* ========================================================= */}
-          <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-stone-400">
-                Key Performance Metrics
-              </h2>
-              <span className="text-[11px] text-teal-400 font-medium">Real-Time Sync · Supabase</span>
+        <main className="flex-1 space-y-6 min-w-0">
+          {/* Top POV Switcher & Operations View Banner */}
+          <div className="bg-stone-950 p-4 sm:p-5 rounded-3xl border border-stone-800 shadow-xl space-y-3">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-stone-400 tracking-wider">
+                  Service Provider Point of View (POV):
+                </span>
+                <div className="text-base font-extrabold text-white flex items-center gap-2 mt-0.5">
+                  <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
+                  <span>Viewing As: <strong className="text-teal-300">{providerTypeLabel}</strong></span>
+                </div>
+              </div>
+
+              {/* 3 Prominent POV Switcher Buttons */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProviderType('veterinary_clinic');
+                    showToast('Switched to Veterinary Clinic POV');
+                  }}
+                  className={`py-2.5 px-3.5 rounded-2xl text-xs font-bold transition flex items-center justify-center gap-2 border cursor-pointer ${
+                    providerType === 'veterinary_clinic'
+                      ? 'bg-teal-500 text-stone-950 border-teal-400 shadow-lg ring-2 ring-teal-500/30'
+                      : 'bg-stone-900 border-stone-800 text-stone-400 hover:text-white hover:border-stone-700'
+                  }`}
+                >
+                  <Activity className="w-4 h-4" />
+                  <span>Veterinary Clinic POV</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProviderType('grooming_salon');
+                    showToast('Switched to Spa & Grooming POV');
+                  }}
+                  className={`py-2.5 px-3.5 rounded-2xl text-xs font-bold transition flex items-center justify-center gap-2 border cursor-pointer ${
+                    providerType === 'grooming_salon'
+                      ? 'bg-teal-500 text-stone-950 border-teal-400 shadow-lg ring-2 ring-teal-500/30'
+                      : 'bg-stone-900 border-stone-800 text-stone-400 hover:text-white hover:border-stone-700'
+                  }`}
+                >
+                  <Scissors className="w-4 h-4" />
+                  <span>Spa & Grooming POV</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProviderType('rescue_shelter');
+                    showToast('Switched to Shelters & Rescue POV');
+                  }}
+                  className={`py-2.5 px-3.5 rounded-2xl text-xs font-bold transition flex items-center justify-center gap-2 border cursor-pointer ${
+                    providerType === 'rescue_shelter' || providerType === 'animal_shelter'
+                      ? 'bg-teal-500 text-stone-950 border-teal-400 shadow-lg ring-2 ring-teal-500/30'
+                      : 'bg-stone-900 border-stone-800 text-stone-400 hover:text-white hover:border-stone-700'
+                  }`}
+                >
+                  <Shield className="w-4 h-4" />
+                  <span>Shelters & Rescue POV</span>
+                </button>
+              </div>
             </div>
+          </div>
+
+          {/* TAB 1: DASHBOARD (Key Performance Metrics + Dynamic Provider Operations) */}
+          {activeSidebarTab === 'dashboard' && (
+            <div className="space-y-8 animate-fadeIn">
+              {/* ========================================================= */}
+              {/* COMMON PROVIDER METRICS (Top Statistics Cards) */}
+              {/* ========================================================= */}
+              <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-stone-400">
+                    Key Performance Metrics ({providerTypeLabel})
+                  </h2>
+                  <span className="text-[11px] text-teal-400 font-medium">Real-Time Sync · Supabase</span>
+                </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
               {/* Card 1: Total Clients */}
@@ -1291,10 +1407,66 @@ export const ProviderPortalDashboard: React.FC<ProviderPortalDashboardProps> = (
                     </div>
                   </div>
                 </div>
-              </div>
             </div>
           )}
-        </main>
+          </div>
+        )}
+
+        {/* TAB 2: BOOKINGS */}
+        {activeSidebarTab === 'bookings' && (
+          <ProviderBookingsView
+            providerType={providerType}
+            appointments={appointments}
+            onShowToast={showToast}
+            formatPrice={formatPrice}
+          />
+        )}
+
+        {/* TAB 3: CLIENTS */}
+        {activeSidebarTab === 'clients' && (
+          <ProviderClientsView
+            providerType={providerType}
+            onShowToast={showToast}
+            formatPrice={formatPrice}
+          />
+        )}
+
+        {/* TAB 4: PETS */}
+        {activeSidebarTab === 'pets' && (
+          <ProviderPetsView
+            providerType={providerType}
+            pets={pets}
+            onShowToast={showToast}
+          />
+        )}
+
+        {/* TAB 5: MESSAGES */}
+        {activeSidebarTab === 'messages' && (
+          <ProviderMessagesView
+            providerType={providerType}
+            onShowToast={showToast}
+          />
+        )}
+
+        {/* TAB 6: REPORTS */}
+        {activeSidebarTab === 'reports' && (
+          <ProviderReportsView
+            providerType={providerType}
+            onShowToast={showToast}
+            formatPrice={formatPrice}
+          />
+        )}
+
+        {/* TAB 7: SETTINGS */}
+        {activeSidebarTab === 'settings' && (
+          <ProviderSettingsView
+            providerType={providerType}
+            businessName={businessName}
+            onShowToast={showToast}
+            formatPrice={formatPrice}
+          />
+        )}
+      </main>
       </div>
 
       {/* ========================================================= */}

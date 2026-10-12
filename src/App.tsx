@@ -255,16 +255,17 @@ const MainLayout: React.FC = () => {
     }
   };
 
-  // 5. PET CARE SERVICE PROVIDER PORTAL DASHBOARD
+  // 5. SERVICE PROVIDER PORTAL DASHBOARD (Veterinary Clinics, Spa & Grooming, Shelters & Rescue)
   if (
     profile.role === 'service_provider' ||
+    profile.role === 'veterinarian' ||
     showProviderPortal
   ) {
     return (
       <ProviderPortalDashboard
         onBackToPetOwner={() => {
           setShowProviderPortal(false);
-          if (profile.role === 'service_provider') {
+          if (profile.role === 'service_provider' || profile.role === 'veterinarian') {
             switchRole('pet_owner');
           }
         }}
